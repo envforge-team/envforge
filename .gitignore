@@ -25,3 +25,23 @@ replay_pid*
 
 # Maven build output
 **/target/
+
+
+# Local environment
+.env
+.env.local
+.env.*.local
+
+# Java
+**/target/
+*.class
+
+# Node
+**/node_modules/
+**/dist/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
