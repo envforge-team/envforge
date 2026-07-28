@@ -2,17 +2,12 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
-type EnvironmentForm = {
-  name: string
-  template: string
-  imageVersion: string
-  replicas: number
-  resourceProfile: string
-  lifetimeHours: number
-  monitoringEnabled: boolean
-}
+import type {
+  CreateEnvironmentRequest,
+  EnvironmentResponse,
+} from './features/environments/environmentTypes'
 
-const initialForm: EnvironmentForm = {
+const initialForm: CreateEnvironmentRequest = {
   name: '',
   template: 'STATIC_WEB',
   imageVersion: '0.1.0',
@@ -23,9 +18,11 @@ const initialForm: EnvironmentForm = {
 }
 
 function App() {
-  const [form, setForm] = useState<EnvironmentForm>(initialForm)
+  const [form, setForm] =
+    useState<CreateEnvironmentRequest>(initialForm)
+
   const [submittedEnvironment, setSubmittedEnvironment] =
-    useState<EnvironmentForm | null>(null)
+    useState<CreateEnvironmentRequest | null>(null)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -38,11 +35,15 @@ function App() {
     <div className="app">
       <header className="header">
         <div>
-          <span className="product-label">SELF-SERVICE AKS PLATFORM</span>
+          <span className="product-label">
+            SELF-SERVICE AKS PLATFORM
+          </span>
           <h1>EnvForge</h1>
         </div>
 
-        <span className="environment-badge">Local development</span>
+        <span className="environment-badge">
+          Local development
+        </span>
       </header>
 
       <main className="content">
@@ -56,7 +57,10 @@ function App() {
           </p>
         </section>
 
-        <form className="environment-form" onSubmit={handleSubmit}>
+        <form
+          className="environment-form"
+          onSubmit={handleSubmit}
+        >
           <div className="field field-full">
             <label htmlFor="name">Environment name</label>
             <input
@@ -66,7 +70,10 @@ function App() {
               placeholder="api-demo-bogdan"
               value={form.name}
               onChange={(event) =>
-                setForm({ ...form, name: event.target.value })
+                setForm({
+                  ...form,
+                  name: event.target.value,
+                })
               }
               minLength={3}
               maxLength={40}
@@ -79,27 +86,43 @@ function App() {
           </div>
 
           <div className="field">
-            <label htmlFor="template">Application template</label>
+            <label htmlFor="template">
+              Application template
+            </label>
             <select
               id="template"
               value={form.template}
               onChange={(event) =>
-                setForm({ ...form, template: event.target.value })
+                setForm({
+                  ...form,
+                  template:
+                    event.target
+                      .value as CreateEnvironmentRequest['template'],
+                })
               }
             >
-              <option value="STATIC_WEB">Static Web App</option>
-              <option value="RELIABILITY_API">Reliability Demo API</option>
+              <option value="STATIC_WEB">
+                Static Web App
+              </option>
+              <option value="RELIABILITY_API">
+                Reliability Demo API
+              </option>
             </select>
           </div>
 
           <div className="field">
-            <label htmlFor="imageVersion">Image version</label>
+            <label htmlFor="imageVersion">
+              Image version
+            </label>
             <input
               id="imageVersion"
               type="text"
               value={form.imageVersion}
               onChange={(event) =>
-                setForm({ ...form, imageVersion: event.target.value })
+                setForm({
+                  ...form,
+                  imageVersion: event.target.value,
+                })
               }
               placeholder="0.1.0"
               required
@@ -125,14 +148,18 @@ function App() {
           </div>
 
           <div className="field">
-            <label htmlFor="resourceProfile">Resource profile</label>
+            <label htmlFor="resourceProfile">
+              Resource profile
+            </label>
             <select
               id="resourceProfile"
               value={form.resourceProfile}
               onChange={(event) =>
                 setForm({
                   ...form,
-                  resourceProfile: event.target.value,
+                  resourceProfile:
+                    event.target
+                      .value as CreateEnvironmentRequest['resourceProfile'],
                 })
               }
             >
@@ -143,7 +170,9 @@ function App() {
           </div>
 
           <div className="field">
-            <label htmlFor="lifetimeHours">Lifetime</label>
+            <label htmlFor="lifetimeHours">
+              Lifetime
+            </label>
             <select
               id="lifetimeHours"
               value={form.lifetimeHours}
@@ -197,16 +226,24 @@ function App() {
               Reset
             </button>
 
-            <button type="submit" className="primary-button">
+            <button
+              type="submit"
+              className="primary-button"
+            >
               Create environment
             </button>
           </div>
         </form>
 
         {submittedEnvironment && (
-          <section className="result" aria-live="polite">
+          <section
+            className="result"
+            aria-live="polite"
+          >
             <div>
-              <span className="result-status">REQUESTED</span>
+              <span className="result-status">
+                REQUESTED
+              </span>
               <h3>{submittedEnvironment.name}</h3>
               <p>
                 The request was validated locally. It is not yet sent to the
@@ -217,22 +254,30 @@ function App() {
             <dl>
               <div>
                 <dt>Namespace</dt>
-                <dd>env-{submittedEnvironment.name}</dd>
+                <dd>
+                  env-{submittedEnvironment.name}
+                </dd>
               </div>
 
               <div>
                 <dt>Template</dt>
-                <dd>{submittedEnvironment.template}</dd>
+                <dd>
+                  {submittedEnvironment.template}
+                </dd>
               </div>
 
               <div>
                 <dt>Replicas</dt>
-                <dd>{submittedEnvironment.replicas}</dd>
+                <dd>
+                  {submittedEnvironment.replicas}
+                </dd>
               </div>
 
               <div>
                 <dt>Lifetime</dt>
-                <dd>{submittedEnvironment.lifetimeHours} hours</dd>
+                <dd>
+                  {submittedEnvironment.lifetimeHours} hours
+                </dd>
               </div>
             </dl>
           </section>
