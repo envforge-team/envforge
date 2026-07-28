@@ -2,6 +2,11 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
+import {
+  createEnvironment,
+  EnvironmentApiError,
+} from './features/environments/environmentApi'
+
 import type {
   CreateEnvironmentRequest,
   EnvironmentResponse,
@@ -21,15 +26,36 @@ function App() {
   const [form, setForm] =
     useState<CreateEnvironmentRequest>(initialForm)
 
-  const [submittedEnvironment, setSubmittedEnvironment] =
-    useState<CreateEnvironmentRequest | null>(null)
+  const [createdEnvironment, setCreatedEnvironment] =
+  useState<EnvironmentResponse | null>(null)
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
-    console.log('Environment request:', form)
-    setSubmittedEnvironment(form)
+  async function handleSubmit(
+  event: FormEvent<HTMLFormElement>,
+) {
+  event.preventDefault()
+
+  setIsSubmitting(true)
+  setSubmitError(null)
+  setCreatedEnvironment(null)
+
+  try {
+    const environment = await createEnvironment(form)
+    setCreatedEnvironment(environment)
+  } catch (error) {
+    if (error instanceof EnvironmentApiError) {
+      setSubmitError(error.message)
+    } else {
+      setSubmitError(
+        'The Control API is unavailable. Please try again.',
+      )
+    }
+  } finally {
+    setIsSubmitting(false)
   }
+}
 
   return (
     <div className="app">
@@ -220,7 +246,8 @@ function App() {
               className="secondary-button"
               onClick={() => {
                 setForm(initialForm)
-                setSubmittedEnvironment(null)
+                setCreatedEnvironment(null)
+                setSubmitError(null)
               }}
             >
               Reset
@@ -229,25 +256,40 @@ function App() {
             <button
               type="submit"
               className="primary-button"
+              disabled={isSubmitting}
             >
-              Create environment
+              {isSubmitting
+                ? 'Creating environment...'
+                : 'Create environment'}
             </button>
           </div>
         </form>
 
-        {submittedEnvironment && (
+        {submitError && (
+          <section
+            className="error-message"
+            role="alert"
+          >
+            <strong>
+              Environment could not be created
+            </strong>
+            <p>{submitError}</p>
+          </section>
+        )}
+
+        {createdEnvironment  && (
           <section
             className="result"
             aria-live="polite"
           >
             <div>
               <span className="result-status">
-                REQUESTED
+                {createdEnvironment.status}
               </span>
-              <h3>{submittedEnvironment.name}</h3>
+              <h3>{createdEnvironment.name}</h3>
               <p>
-                The request was validated locally. It is not yet sent to the
-                Spring Boot API.
+                The environment request was validated and persisted by
+                the EnvForge Control API.
               </p>
             </div>
 
@@ -255,28 +297,30 @@ function App() {
               <div>
                 <dt>Namespace</dt>
                 <dd>
-                  env-{submittedEnvironment.name}
+                  env-{createdEnvironment.name}
                 </dd>
               </div>
 
               <div>
                 <dt>Template</dt>
                 <dd>
-                  {submittedEnvironment.template}
+                  {createdEnvironment.template}
                 </dd>
               </div>
 
               <div>
                 <dt>Replicas</dt>
                 <dd>
-                  {submittedEnvironment.replicas}
+                  {createdEnvironment.replicas}
                 </dd>
               </div>
 
               <div>
-                <dt>Lifetime</dt>
+                <dt>Expires at</dt>
                 <dd>
-                  {submittedEnvironment.lifetimeHours} hours
+                  {new Date(
+                    createdEnvironment.expiresAt,
+                  ).toLocaleString()}
                 </dd>
               </div>
             </dl>
