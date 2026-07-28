@@ -1,0 +1,103 @@
+name: Lifecycle task
+description: Task pentru expiration, delete, rollback, cleanup sau audit
+title: "[Lifecycle] "
+labels:
+  - "area:lifecycle"
+
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: Selecteaza zona lifecycle afectata.
+      options:
+        - Expiration
+        - Delete
+        - Rollback
+        - Cleanup worker
+        - Scheduler
+        - Audit
+        - Authorization
+        - Reliability
+        - Testing
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: Descrie rezultatul concret al taskului.
+      placeholder: Platforma trebuie sa...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Adauga conditii clare care pot fi verificate.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-layer
+    attributes:
+      label: Affected layer
+      description: Selecteaza componentele afectate.
+      multiple: true
+      options:
+        - React Portal
+        - Spring Boot Control API
+        - PostgreSQL
+        - Cleanup Worker
+        - Docker
+        - Kubernetes
+        - Helm
+        - Terraform
+        - Azure
+        - GitHub Actions
+        - Monitoring
+        - Security
+    validations:
+      required: true
+
+  - type: textarea
+    id: failure-cases
+    attributes:
+      label: Failure cases
+      description: Descrie erorile, retry-urile sau conflictele posibile.
+      placeholder: |
+        Exemplu:
+        - cleanup partial
+        - rollback invalid
+        - operatie concurenta
+        - timeout Kubernetes
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Mentioneaza modulele, issue-urile sau membrii de care depinde taskul.
+      placeholder: |
+        Exemplu:
+        - depinde de modelul Environment
+        - depinde de Helm revisions
+        - necesita review de la Member 5
+
+  - type: checkboxes
+    id: definition-of-done
+    attributes:
+      label: Definition of Done
+      options:
+        - label: State machine-ul este respectat.
+        - label: Autorizarea si ownership-ul au fost luate in considerare.
+        - label: Auditul a fost luat in considerare.
+        - label: Cazurile de eroare sunt documentate.
+        - label: Testele necesare sunt definite.
+        - label: Documentatia a fost actualizata.

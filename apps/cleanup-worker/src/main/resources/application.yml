@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: cleanup-worker
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+envforge:
+  lifecycle:
+    max-retries: 3
+    retry-delay-seconds: 30
+    job-timeout-seconds: 300
+    scheduler-enabled: false
