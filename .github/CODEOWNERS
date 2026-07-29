@@ -1,0 +1,29 @@
+# CODEOWNERS — envforge
+# Cere review automat de la responsabilul de zonă pentru orice PR care atinge folderele de mai jos.
+# Actualizează @username-github cu username-urile reale de pe GitHub ale echipei.
+
+# Security, Identity & Platform (Membrul 5)
+/apps/control-api/                      @silviuslombrea-github
+/apps/portal/src/pages/Login/           @silviuslombrea-github
+/apps/portal/src/pages/Profile/         @silviuslombrea-github
+/apps/portal/src/pages/Audit/           @silviuslombrea-github
+/infrastructure/modules/identities/     @silviuslombrea-github
+/infrastructure/modules/aks/            @silviuslombrea-github @membrul1-github
+/.github/                               @silviuslombrea-github
+/docs/security-user-stories.md          @silviuslombrea-github
+/docs/security-model.md                 @silviuslombrea-github
+/docs/architecture/identity-architecture.md  @silviuslombrea-github
+
+# Deployment & Releases (Membrul 2)
+/apps/reliability-demo-api/             @membrul2-github
+/deployment/helm/                       @membrul2-github
+/docs/deployment-user-stories.md        @membrul2-github
+
+# Monitoring & Reliability (Membrul 3)
+/observability/                         @membrul3-github
+
+# Lifecycle, Expiration & Rollback (Membrul 4)
+/apps/cleanup-worker/                   @membrul4-github
+
+# Fallback: orice altceva neacoperit mai sus necesită review din partea owner-ului repo-ului
+*                                        @membrul1-github
