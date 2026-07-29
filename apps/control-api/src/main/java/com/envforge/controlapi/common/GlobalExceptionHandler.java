@@ -16,6 +16,8 @@ import org.springframework.web.bind
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.envforge.controlapi.environment.EnvironmentNotFoundException;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -76,4 +78,19 @@ public class GlobalExceptionHandler {
             .status(status)
             .body(error);
     }
+
+
+    @ExceptionHandler(EnvironmentNotFoundException.class)
+    public ResponseEntity<ApiError> handleNotFound(
+        EnvironmentNotFoundException exception,
+        HttpServletRequest request
+    ) {
+        return buildResponse(
+            HttpStatus.NOT_FOUND,
+            exception.getMessage(),
+            request.getRequestURI(),
+            Map.of()
+        );
+    }
+
 }
