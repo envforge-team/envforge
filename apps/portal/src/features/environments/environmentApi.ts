@@ -2,7 +2,9 @@ import type {
   ApiError,
   CreateEnvironmentRequest,
   EnvironmentResponse,
+  TemplateResponse,
 } from './environmentTypes'
+
 
 export class EnvironmentApiError extends Error {
   readonly details: ApiError
@@ -31,4 +33,24 @@ export async function createEnvironment(
   }
 
   return (await response.json()) as EnvironmentResponse
+}
+
+export async function getTemplates(
+  signal?: AbortSignal,
+): Promise<TemplateResponse[]> {
+  const response = await fetch('/api/templates', {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      `Template request failed with status ${response.status}`,
+    )
+  }
+
+  return (await response.json()) as TemplateResponse[]
 }

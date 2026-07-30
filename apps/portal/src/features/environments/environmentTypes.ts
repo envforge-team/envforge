@@ -51,3 +51,12 @@ export type ApiError = {
   path?: string
   timestamp: string
 }
+
+
+export type TemplateResponse = {
+  id: string
+  code: EnvironmentTemplate
+  displayName: string
+  imageRepository: string
+  defaultImageVersion: string
+}

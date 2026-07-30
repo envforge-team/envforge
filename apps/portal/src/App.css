@@ -274,3 +274,15 @@ select {
   cursor: not-allowed;
   opacity: 0.65;
 }
+
+
+.field-error {
+  color: #b42318;
+  font-weight: 600;
+}
+
+.field select:disabled,
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}

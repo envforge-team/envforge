@@ -1,16 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
 import {
   createEnvironment,
   EnvironmentApiError,
+  getTemplates,
 } from './features/environments/environmentApi'
 
 import type {
   CreateEnvironmentRequest,
   EnvironmentResponse,
+  TemplateResponse,
 } from './features/environments/environmentTypes'
+
+
+
 
 const initialForm: CreateEnvironmentRequest = {
   name: '',
@@ -29,8 +34,97 @@ function App() {
   const [createdEnvironment, setCreatedEnvironment] =
   useState<EnvironmentResponse | null>(null)
 
+  const [templates, setTemplates] =
+  useState<TemplateResponse[]>([])
+
+  const [templatesLoading, setTemplatesLoading] =
+    useState(true)
+
+  const [templatesError, setTemplatesError] =
+    useState<string | null>(null)
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+    useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadTemplates() {
+      setTemplatesLoading(true)
+      setTemplatesError(null)
+
+      try {
+        const loadedTemplates = await getTemplates(
+          controller.signal,
+        )
+
+        setTemplates(loadedTemplates)
+
+        setForm((currentForm) => {
+          const selectedTemplate =
+            loadedTemplates.find(
+              (template) =>
+                template.code === currentForm.template,
+            ) ?? loadedTemplates[0]
+
+          if (!selectedTemplate) {
+            return currentForm
+          }
+
+          return {
+            ...currentForm,
+            template: selectedTemplate.code,
+            imageVersion:
+              selectedTemplate.defaultImageVersion,
+          }
+        })
+      } catch (error) {
+        if (
+          error instanceof DOMException &&
+          error.name === 'AbortError'
+        ) {
+          return
+        }
+
+        setTemplatesError(
+          'Application templates could not be loaded.',
+        )
+      } finally {
+        if (!controller.signal.aborted) {
+          setTemplatesLoading(false)
+        }
+      }
+    }
+
+    void loadTemplates()
+
+    return () => {
+      controller.abort()
+    }
+  }, [])
+
+
+  function handleTemplateChange(
+  templateCode: string,
+) {
+  const selectedTemplate = templates.find(
+    (template) => template.code === templateCode,
+  )
+
+  if (!selectedTemplate) {
+    return
+  }
+
+  setForm({
+    ...form,
+    template: selectedTemplate.code,
+    imageVersion:
+      selectedTemplate.defaultImageVersion,
+  })
+}
+
+
+
 
   async function handleSubmit(
   event: FormEvent<HTMLFormElement>,
@@ -119,21 +213,39 @@ function App() {
               id="template"
               value={form.template}
               onChange={(event) =>
-                setForm({
-                  ...form,
-                  template:
-                    event.target
-                      .value as CreateEnvironmentRequest['template'],
-                })
+                handleTemplateChange(event.target.value)
+              }
+              disabled={
+                templatesLoading || templates.length === 0
               }
             >
-              <option value="STATIC_WEB">
-                Static Web App
-              </option>
-              <option value="RELIABILITY_API">
-                Reliability Demo API
-              </option>
+              {templatesLoading && (
+                <option value="">
+                  Loading templates...
+                </option>
+              )}
+
+              {!templatesLoading &&
+                templates.length === 0 && (
+                  <option value="">
+                    No templates available
+                  </option>
+                )}
+
+              {templates.map((template) => (
+                <option
+                  key={template.id}
+                  value={template.code}
+                >
+                  {template.displayName}
+                </option>
+              ))}
             </select>
+            {templatesError && (
+              <small className="field-error">
+                {templatesError}
+              </small>
+            )}
           </div>
 
           <div className="field">
@@ -256,7 +368,11 @@ function App() {
             <button
               type="submit"
               className="primary-button"
-              disabled={isSubmitting}
+              disabled={
+                isSubmitting ||
+                templatesLoading ||
+                templates.length === 0
+              }
             >
               {isSubmitting
                 ? 'Creating environment...'
