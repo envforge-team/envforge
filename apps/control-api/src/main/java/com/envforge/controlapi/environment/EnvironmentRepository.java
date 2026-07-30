@@ -1,5 +1,6 @@
 package com.envforge.controlapi.environment;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,4 +14,6 @@ public interface EnvironmentRepository
     boolean existsByName(String name);
 
     boolean existsByNamespace(String namespace);
+
+    List<EnvironmentEntity> findAllByOrderByCreatedAtDesc();
 }

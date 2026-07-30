@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,4 +67,26 @@ public class EnvironmentService {
 
         return EnvironmentResponse.from(saved);
     }
+
+    @Transactional(readOnly = true)
+    public List<EnvironmentResponse> findAll() {
+        return environmentRepository
+            .findAllByOrderByCreatedAtDesc()
+            .stream()
+            .map(EnvironmentResponse::from)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public EnvironmentResponse findById(UUID id) {
+        return environmentRepository
+            .findById(id)
+            .map(EnvironmentResponse::from)
+            .orElseThrow(
+                () -> new EnvironmentNotFoundException(id)
+            );
+    }
+
+
+
 }
