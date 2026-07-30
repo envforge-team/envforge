@@ -2,6 +2,7 @@ package com.envforge.controlapi.common;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import com.envforge.controlapi.environment.EnvironmentNotFoundException;
 import com.envforge.controlapi.environment
     .EnvironmentAlreadyExistsException;
 import com.envforge.controlapi.security
@@ -29,6 +30,18 @@ public class GlobalExceptionHandler {
             Map.of()
         );
     }
+    @ExceptionHandler(EnvironmentNotFoundException.class)
+public ResponseEntity<ApiError> handleEnvironmentNotFound(
+    EnvironmentNotFoundException exception,
+    HttpServletRequest request
+) {
+    return buildResponse(
+        HttpStatus.NOT_FOUND,
+        exception.getMessage(),
+        request.getRequestURI(),
+        Map.of()
+    );
+}
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiError> handleUserNotFound(
         UserNotFoundException exception,
