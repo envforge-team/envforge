@@ -1,6 +1,6 @@
 CREATE TABLE deployment (
     id BIGSERIAL PRIMARY KEY,
-    environment_id BIGINT NOT NULL REFERENCES environments(id),
+    environment_id UUID NOT NULL REFERENCES environments(id),
     requested_version VARCHAR(50) NOT NULL,
     image_tag VARCHAR(255),
     status VARCHAR(20) NOT NULL,
