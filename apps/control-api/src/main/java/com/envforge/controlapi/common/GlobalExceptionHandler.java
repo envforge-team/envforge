@@ -1,24 +1,22 @@
 package com.envforge.controlapi.common;
-
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
 import com.envforge.controlapi.environment
     .EnvironmentAlreadyExistsException;
-
+import com.envforge.controlapi.security
+    .AccessDeniedException;
+import com.envforge.controlapi.user
+    .UserNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind
     .MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
     @ExceptionHandler(EnvironmentAlreadyExistsException.class)
     public ResponseEntity<ApiError> handleDuplicate(
         EnvironmentAlreadyExistsException exception,
@@ -31,7 +29,30 @@ public class GlobalExceptionHandler {
             Map.of()
         );
     }
-
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ApiError> handleUserNotFound(
+        UserNotFoundException exception,
+        HttpServletRequest request
+    ) {
+        return buildResponse(
+            HttpStatus.NOT_FOUND,
+            exception.getMessage(),
+            request.getRequestURI(),
+            Map.of()
+        );
+    }
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiError> handleAccessDenied(
+        AccessDeniedException exception,
+        HttpServletRequest request
+    ) {
+        return buildResponse(
+            HttpStatus.FORBIDDEN,
+            exception.getMessage(),
+            request.getRequestURI(),
+            Map.of()
+        );
+    }
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(
         MethodArgumentNotValidException exception,
@@ -39,7 +60,6 @@ public class GlobalExceptionHandler {
     ) {
         Map<String, String> validationErrors =
             new LinkedHashMap<>();
-
         exception.getBindingResult()
             .getFieldErrors()
             .forEach(error ->
@@ -48,7 +68,6 @@ public class GlobalExceptionHandler {
                     error.getDefaultMessage()
                 )
             );
-
         return buildResponse(
             HttpStatus.BAD_REQUEST,
             "Request validation failed",
@@ -56,7 +75,6 @@ public class GlobalExceptionHandler {
             validationErrors
         );
     }
-
     private ResponseEntity<ApiError> buildResponse(
         HttpStatus status,
         String message,
@@ -71,7 +89,6 @@ public class GlobalExceptionHandler {
             Instant.now(),
             validationErrors
         );
-
         return ResponseEntity
             .status(status)
             .body(error);

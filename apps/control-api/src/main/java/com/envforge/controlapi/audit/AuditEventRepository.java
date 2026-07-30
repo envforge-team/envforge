@@ -13,4 +13,6 @@ public interface AuditEventRepository extends JpaRepository<AuditEventEntity, UU
     );
 
     List<AuditEventEntity> findByActorOrderByCreatedAtDesc(String actor);
+
+    List<AuditEventEntity> findAllByOrderByCreatedAtDesc();
 }
