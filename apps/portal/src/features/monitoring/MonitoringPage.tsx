@@ -3,13 +3,13 @@ import './MonitoringPage.css'
 import type {
   EventSeverity,
   HealthStatus,
-  MonitoringEvent,
-  MonitoringSnapshot,
+  EventResponse,
+  MetricResponse,
 } from './monitoringTypes'
 
 export type MonitoringPageProps = {
-  snapshot: MonitoringSnapshot | null
-  events: MonitoringEvent[]
+  snapshot: MetricResponse | null
+  events: EventResponse[]
   isLoading?: boolean
   errorMessage?: string | null
 }

@@ -20,7 +20,7 @@ export type EnvironmentEventType =
   | 'EXPIRED'
   | 'DELETED'
 
-export type MonitoringSnapshot = {
+export type MetricResponse = {
   environmentId: string
   environmentName: string
   namespace: string
@@ -32,7 +32,7 @@ export type MonitoringSnapshot = {
   capturedAt: string
 }
 
-export type MonitoringEvent = {
+export type EventResponse = {
   id: string
   environmentId: string
   eventType: EnvironmentEventType
