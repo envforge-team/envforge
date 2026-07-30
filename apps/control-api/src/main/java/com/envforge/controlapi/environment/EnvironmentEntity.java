@@ -10,6 +10,13 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import com.envforge.controlapi.deployment.DeploymentEntity;
+import jakarta.persistence.OneToMany;
+import java.util.List;
+import java.util.ArrayList;
+
+import jakarta.persistence.*;
+
 @Entity
 @Table(name = "environments")
 public class EnvironmentEntity {
@@ -55,6 +62,9 @@ public class EnvironmentEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @OneToMany(mappedBy = "environment", cascade = CascadeType.ALL)
+private java.util.List<com.envforge.controlapi.deployment.DeploymentEntity> deployments = new java.util.ArrayList<>();
 
     protected EnvironmentEntity() {
     }

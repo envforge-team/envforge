@@ -16,6 +16,12 @@ import org.springframework.web.bind
     .MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+
+import com.envforge.controlapi.deployment.ConcurrentRolloutException;
+import com.envforge.controlapi.deployment.DeploymentNotFoundException;
+import com.envforge.controlapi.deployment.InvalidVersionException;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(EnvironmentAlreadyExistsException.class)
@@ -42,6 +48,47 @@ public ResponseEntity<ApiError> handleEnvironmentNotFound(
         Map.of()
     );
 }
+
+
+ @ExceptionHandler(DeploymentNotFoundException.class)
+public ResponseEntity<ApiError> handleDeploymentNotFound(
+    DeploymentNotFoundException exception,
+    HttpServletRequest request
+) {
+    return buildResponse(
+        HttpStatus.NOT_FOUND,
+        exception.getMessage(),
+        request.getRequestURI(),
+        Map.of()
+    );
+}
+
+@ExceptionHandler(InvalidVersionException.class)
+public ResponseEntity<ApiError> handleInvalidVersion(
+    InvalidVersionException exception,
+    HttpServletRequest request
+) {
+    return buildResponse(
+        HttpStatus.BAD_REQUEST,
+        exception.getMessage(),
+        request.getRequestURI(),
+        Map.of()
+    );
+}
+
+@ExceptionHandler(ConcurrentRolloutException.class)
+public ResponseEntity<ApiError> handleConcurrentRollout(
+    ConcurrentRolloutException exception,
+    HttpServletRequest request
+) {
+    return buildResponse(
+        HttpStatus.CONFLICT,
+        exception.getMessage(),
+        request.getRequestURI(),
+        Map.of()
+    );
+}
+
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiError> handleUserNotFound(
         UserNotFoundException exception,
