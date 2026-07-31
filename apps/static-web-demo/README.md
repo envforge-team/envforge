@@ -1,39 +1,47 @@
 # EnvForge Static Web Demo
 
-A minimal Nginx application used as an EnvForge environment template.
+A minimal Nginx workload used as an EnvForge environment template.
+
+The container:
+
+- runs as a non-root user;
+- listens on port 8080;
+- exposes a health endpoint;
+- can be deployed through Kubernetes and Helm.
 
 ## Build
 
 ```bash
-docker build -t envforge/static-web-demo:0.1.0 .
+docker build \
+  --tag envforge/static-web-demo:0.2.0 \
+  .
 ```
 
 ## Run
 
 ```bash
-docker run --rm \
+docker run --rm -d \
   --name envforge-static-web \
-  -p 8080:80 \
-  envforge/static-web-demo:0.1.0
+  --publish 8080:8080 \
+  envforge/static-web-demo:0.2.0
 ```
 
 ## Verify
 
-Open:
-
-```text
-http://localhost:8080
+```bash
+curl http://localhost:8080/
+curl http://localhost:8080/health
 ```
 
-Or run:
+## Check health
 
 ```bash
-curl http://localhost:8080
+docker inspect \
+  --format='{{.State.Health.Status}}' \
+  envforge-static-web
 ```
 
 ## Stop
-
-Press `Ctrl+C` or run:
 
 ```bash
 docker stop envforge-static-web

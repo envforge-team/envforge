@@ -1,4 +1,6 @@
 .git
 .gitignore
+.gitkeep
 README.md
 Dockerfile*
+*.log
