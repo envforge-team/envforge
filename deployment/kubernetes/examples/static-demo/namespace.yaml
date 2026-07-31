@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: env-static-demo-m1
+  labels:
+    envforge.io/managed: "true"
+    envforge.io/template: "static-web"
+    envforge.io/owner: "bogdan"
+    app.kubernetes.io/managed-by: "envforge"
+    pod-security.kubernetes.io/enforce: "restricted"
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+  annotations:
+    envforge.io/expires-at: "2026-08-01T18:00:00Z"
+    envforge.io/description: "M1 local provisioning environment"
