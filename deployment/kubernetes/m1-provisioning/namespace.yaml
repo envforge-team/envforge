@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: env-static-demo-m1
+  labels:
+    envforge.io/managed: "true"
+    envforge.io/template: "static-web"
+    envforge.io/owner: "m1"
+    envforge.io/environment: "static-demo-m1"
+    pod-security.kubernetes.io/enforce: "restricted"
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+  annotations:
+    envforge.io/expires-at: "2026-08-01T18:00:00Z"
