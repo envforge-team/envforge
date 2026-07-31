@@ -1,0 +1,26 @@
+{{- if .Values.limitRange.enabled }}
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ include "envforge-workload.fullname" . }}-limits
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "envforge-workload.labels" . | nindent 4 }}
+  annotations:
+    envforge.io/expires-at: {{ .Values.environment.expiresAt | quote }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: {{ .Values.limitRange.container.defaultRequest.cpu | quote }}
+        memory: {{ .Values.limitRange.container.defaultRequest.memory | quote }}
+      default:
+        cpu: {{ .Values.limitRange.container.default.cpu | quote }}
+        memory: {{ .Values.limitRange.container.default.memory | quote }}
+      min:
+        cpu: {{ .Values.limitRange.container.min.cpu | quote }}
+        memory: {{ .Values.limitRange.container.min.memory | quote }}
+      max:
+        cpu: {{ .Values.limitRange.container.max.cpu | quote }}
+        memory: {{ .Values.limitRange.container.max.memory | quote }}
+{{- end }}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: envforge-workload
+description: Generic Helm chart for EnvForge temporary environments
+type: application
+version: 0.1.0
+appVersion: "0.2.0"

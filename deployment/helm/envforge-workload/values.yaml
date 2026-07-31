@@ -1,0 +1,38 @@
+nameOverride: ""
+fullnameOverride: ""
+
+environment:
+  name: static-demo-m1
+  owner: m1
+  template: static-web
+  expiresAt: "2026-08-01T18:00:00Z"
+
+quota:
+  enabled: true
+  requests:
+    cpu: "1"
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+  objectCounts:
+    pods: 10
+    services: 5
+    configMaps: 10
+    secrets: 10
+
+limitRange:
+  enabled: true
+  container:
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    default:
+      cpu: 250m
+      memory: 256Mi
+    min:
+      cpu: 50m
+      memory: 64Mi
+    max:
+      cpu: "1"
+      memory: 1Gi

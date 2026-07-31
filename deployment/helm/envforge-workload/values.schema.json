@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "environment",
+    "quota",
+    "limitRange"
+  ],
+  "properties": {
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "owner",
+        "template",
+        "expiresAt"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "template": {
+          "type": "string",
+          "enum": [
+            "static-web",
+            "reliability-api"
+          ]
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "quota": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "requests",
+        "limits",
+        "objectCounts"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "requests": {
+          "$ref": "#/$defs/resources"
+        },
+        "limits": {
+          "$ref": "#/$defs/resources"
+        },
+        "objectCounts": {
+          "type": "object",
+          "required": [
+            "pods",
+            "services",
+            "configMaps",
+            "secrets"
+          ],
+          "properties": {
+            "pods": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "services": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "configMaps": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "secrets": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "limitRange": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "container"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "container": {
+          "type": "object",
+          "required": [
+            "defaultRequest",
+            "default",
+            "min",
+            "max"
+          ],
+          "properties": {
+            "defaultRequest": {
+              "$ref": "#/$defs/resources"
+            },
+            "default": {
+              "$ref": "#/$defs/resources"
+            },
+            "min": {
+              "$ref": "#/$defs/resources"
+            },
+            "max": {
+              "$ref": "#/$defs/resources"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cpu",
+        "memory"
+      ],
+      "properties": {
+        "cpu": {
+          "type": "string",
+          "minLength": 1
+        },
+        "memory": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

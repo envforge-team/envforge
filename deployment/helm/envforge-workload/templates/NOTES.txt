@@ -1,0 +1,19 @@
+EnvForge environment policies were installed.
+
+Environment:
+  Name: {{ .Values.environment.name }}
+  Owner: {{ .Values.environment.owner }}
+  Template: {{ .Values.environment.template }}
+  Expires at: {{ .Values.environment.expiresAt }}
+
+Release:
+  Name: {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+
+Inspect the namespace policies:
+
+  kubectl describe resourcequota \
+    --namespace {{ .Release.Namespace }}
+
+  kubectl describe limitrange \
+    --namespace {{ .Release.Namespace }}
