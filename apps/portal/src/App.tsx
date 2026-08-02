@@ -14,8 +14,7 @@ import type {
   TemplateResponse,
 } from './features/environments/environmentTypes'
 
-
-
+import { EnvironmentDeploymentsPage } from './features/deployments/EnvironmentDeploymentsPage'
 
 const initialForm: CreateEnvironmentRequest = {
   name: '',
@@ -440,6 +439,16 @@ function App() {
                 </dd>
               </div>
             </dl>
+          </section>
+        )}
+
+        {createdEnvironment && (
+          <section className="deployments">
+            <h3>Deployments for {createdEnvironment.name}</h3>
+            <EnvironmentDeploymentsPage
+              environmentId={createdEnvironment.id}
+              environmentName={createdEnvironment.name}
+            />
           </section>
         )}
       </main>

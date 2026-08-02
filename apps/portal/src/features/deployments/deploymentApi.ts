@@ -1,39 +1,52 @@
-import type { DeploymentResponse } from './deploymentTypes';
+import type { ApiError } from '../environments/environmentTypes'
+import type { DeploymentResponse, UpdateEnvironmentRequest } from './deploymentTypes'
 
-const mockDeployments: DeploymentResponse[] = [
-  {
-    id: 1, environmentId: 1, requestedVersion: '1.3.0', imageTag: 'acr.io/api:1.3.0',
-    status: 'SUCCESS', triggeredBy: 'raoul',
-    startedAt: '2026-07-20T10:00:00Z', finishedAt: '2026-07-20T10:03:00Z', failureReason: null,
-  },
-];
+export class DeploymentApiError extends Error {
+  readonly details: ApiError
 
-export function fetchDeploymentHistory(environmentId: number): Promise<DeploymentResponse[]> {
-  return new Promise((resolve) =>
-    setTimeout(() => resolve(mockDeployments.filter((d) => d.environmentId === environmentId)), 400)
-  );
+  constructor(details: ApiError) {
+    super(details.message)
+    this.name = 'DeploymentApiError'
+    this.details = details
+  }
 }
 
-export function updateEnvironment(environmentId: number, version: string): Promise<DeploymentResponse> {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (!/^\d+\.\d+\.\d+$/.test(version)) {
-        reject(new Error('Invalid version format'));
-        return;
-      }
-      const newDeployment: DeploymentResponse = {
-        id: mockDeployments.length + 1,
-        environmentId,
-        requestedVersion: version,
-        imageTag: `acr.io/api:${version}`,
-        status: 'IN_PROGRESS',
-        triggeredBy: 'raoul',
-        startedAt: new Date().toISOString(),
-        finishedAt: null,
-        failureReason: null,
-      };
-      mockDeployments.push(newDeployment);
-      resolve(newDeployment);
-    }, 600);
-  });
+export async function fetchDeploymentHistory(
+  environmentId: string,
+): Promise<DeploymentResponse[]> {
+  const response = await fetch(`/api/environments/${environmentId}/deployments`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    const error = (await response.json()) as ApiError
+    throw new DeploymentApiError(error)
+  }
+
+  return (await response.json()) as DeploymentResponse[]
+}
+
+export async function updateEnvironment(
+  environmentId: string,
+  version: string,
+): Promise<DeploymentResponse> {
+  const body: UpdateEnvironmentRequest = { version }
+
+  const response = await fetch(`/api/environments/${environmentId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const error = (await response.json()) as ApiError
+    throw new DeploymentApiError(error)
+  }
+
+  return (await response.json()) as DeploymentResponse
 }

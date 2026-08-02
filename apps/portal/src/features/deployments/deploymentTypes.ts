@@ -2,7 +2,7 @@ export type DeploymentStatus = 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED' 
 
 export interface DeploymentResponse {
   id: number;
-  environmentId: number;
+  environmentId: string;
   requestedVersion: string;
   imageTag: string;
   status: DeploymentStatus;
