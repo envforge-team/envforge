@@ -1,4 +1,5 @@
 import type { CurrentUserProfile, UserRole } from './identityTypes'
+import { permittedOperations } from './identityPermissions'
 
 export type ProfilePageProps = {
   user: CurrentUserProfile | null
@@ -50,6 +51,14 @@ export function ProfilePage({
                 </dd>
               </div>
             </dl>
+            <div>
+              <dt>What you can do</dt>
+              <ul>
+                {permittedOperations(user.role).map((operation) => (
+                  <li key={operation}>{operation}</li>
+                ))}
+              </ul>
+            </div>
           </section>
         )}
         {!isLoading && !user && (

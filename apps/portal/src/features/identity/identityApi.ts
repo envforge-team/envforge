@@ -1,63 +1,62 @@
 import type {
+  ApiError,
   AuditLogEntry,
   CurrentUserProfile,
   UpdateUserRoleRequest,
 } from './identityTypes'
 
 export class IdentityApiError extends Error {
-  constructor(message: string) {
+  readonly details?: ApiError
+
+  constructor(message: string, details?: ApiError) {
     super(message)
     this.name = 'IdentityApiError'
+    this.details = details
   }
 }
 
-// NOTE: /api/me, /api/users/{id}/role and /api/audit are not implemented
-// on the backend yet (planned for Săptămâna 3, Zi 12-13: Authorization/
-// AuditService + endpoints). Until then these functions return simulated
-// data so the UI can be built and exercised end-to-end. Swap the bodies
-// for real `fetch` calls once the endpoints exist — keep the same
-// function signatures so the pages don't need to change.
-
-const simulatedCurrentUser: CurrentUserProfile = {
-  id: '00000000-0000-0000-0000-000000000001',
-  displayName: 'Silvius Lombrea',
-  email: 'silvius.lombrea@gmail.com',
-  role: 'ADMIN',
-  createdAt: '2026-07-01T09:00:00Z',
+async function throwApiError(response: Response): Promise<never> {
+  let details: ApiError | undefined
+  try {
+    details = (await response.json()) as ApiError
+  } catch {
+    details = undefined
+  }
+  throw new IdentityApiError(
+    details?.message ?? `Request failed with status ${response.status}`,
+    details,
+  )
 }
 
-const simulatedAuditEvents: AuditLogEntry[] = [
-  {
-    id: 'a1',
-    actor: 'silvius.lombrea@gmail.com',
-    action: 'ENVIRONMENT_UPDATE',
-    resourceType: 'ENVIRONMENT',
-    resourceId: 'api-demo-bogdan',
-    result: 'SUCCESS',
-    createdAt: '2026-07-29T18:32:00Z',
-  },
-  {
-    id: 'a2',
-    actor: 'silvius.lombrea@gmail.com',
-    action: 'ROLE_ASSIGNED',
-    resourceType: 'USER',
-    resourceId: 'colleague@envforge.dev',
-    result: 'SUCCESS',
-    createdAt: '2026-07-28T14:10:00Z',
-  },
-]
-
 export async function fetchCurrentUser(): Promise<CurrentUserProfile> {
-  return simulatedCurrentUser
+  const response = await fetch('/api/me')
+  if (!response.ok) {
+    await throwApiError(response)
+  }
+  return (await response.json()) as CurrentUserProfile
 }
 
 export async function fetchAuditEvents(): Promise<AuditLogEntry[]> {
-  return simulatedAuditEvents
+  const response = await fetch('/api/audit')
+  if (!response.ok) {
+    await throwApiError(response)
+  }
+  return (await response.json()) as AuditLogEntry[]
 }
 
 export async function updateUserRole(
   userId: string,
   request: UpdateUserRoleRequest,
 ): Promise<CurrentUserProfile> {
-  return { ...simulatedCurrentUser, id: userId, role: request.role }
+  const response = await fetch(`/api/users/${userId}/role`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await throwApiError(response)
+  }
+  return (await response.json()) as CurrentUserProfile
 }

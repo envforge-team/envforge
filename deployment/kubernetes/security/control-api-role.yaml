@@ -1,0 +1,18 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: control-api-read
+  namespace: envforge-platform
+  labels:
+    app.kubernetes.io/name: control-api
+    app.kubernetes.io/part-of: envforge
+rules:
+  # Read-only for now (status/health display). Write access for
+  # provisioning environments happens via Helm in CI, not from inside
+  # this pod. Revisit if that changes.
+  - apiGroups: [""]
+    resources: ["pods", "services", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]

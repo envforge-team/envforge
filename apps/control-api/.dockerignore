@@ -1,0 +1,6 @@
+target
+.git
+.gitignore
+.gitattributes
+README.md
+*.log
