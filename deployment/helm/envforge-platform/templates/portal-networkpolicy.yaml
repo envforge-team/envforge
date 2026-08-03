@@ -1,0 +1,35 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: portal
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: portal
+    {{- include "envforge-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: portal
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Public entrypoint (fronted by an Ingress controller later);
+    # refine once Ingress is set up.
+    - {}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: control-api
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

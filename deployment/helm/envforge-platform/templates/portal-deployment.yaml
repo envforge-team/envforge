@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: portal
+    {{- include "envforge-platform.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.portal.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: portal
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: portal
+        {{- include "envforge-platform.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: portal
+      automountServiceAccountToken: false
+      containers:
+        - name: portal
+          image: "{{ .Values.portal.image.repository }}:{{ .Values.portal.image.tag }}"
+          imagePullPolicy: {{ .Values.portal.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10

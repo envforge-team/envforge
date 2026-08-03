@@ -1,0 +1,13 @@
+{{- if .Values.rbac.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portal
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: portal
+    {{- include "envforge-platform.labels" . | nindent 4 }}
+# The portal never calls the Kubernetes API, so it doesn't need a
+# token mounted at all.
+automountServiceAccountToken: false
+{{- end }}

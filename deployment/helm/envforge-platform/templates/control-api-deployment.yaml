@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-api
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: control-api
+    {{- include "envforge-platform.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.controlApi.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: control-api
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: control-api
+        {{- include "envforge-platform.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: control-api
+      containers:
+        - name: control-api
+          image: "{{ .Values.controlApi.image.repository }}:{{ .Values.controlApi.image.tag }}"
+          imagePullPolicy: {{ .Values.controlApi.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DB_URL
+              value: {{ .Values.controlApi.env.dbUrl | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.controlApi.env.dbUsername | quote }}
+            - name: DB_PASSWORD
+              value: {{ .Values.controlApi.env.dbPassword | quote }}
+          resources:
+            {{- toYaml .Values.controlApi.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20

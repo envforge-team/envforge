@@ -1,0 +1,10 @@
+EnvForge platform ({{ .Chart.Name }}-{{ .Chart.Version }}) has been installed
+into namespace {{ .Values.namespace }}.
+
+Control API: control-api.{{ .Values.namespace }}.svc.cluster.local:{{ .Values.controlApi.service.port }}
+Portal:      portal.{{ .Values.namespace }}.svc.cluster.local:{{ .Values.portal.service.port }}
+
+Check status:
+  kubectl get pods -n {{ .Values.namespace }}
+  kubectl get networkpolicy -n {{ .Values.namespace }}
+  kubectl get role,rolebinding -n {{ .Values.namespace }}

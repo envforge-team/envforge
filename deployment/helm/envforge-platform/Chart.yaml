@@ -1,0 +1,6 @@
+apiVersion: v2
+name: envforge-platform
+description: Helm chart for the EnvForge platform services (Control API and Portal)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

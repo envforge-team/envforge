@@ -45,3 +45,5 @@ replay_pid*
 *.tfstate
 *.tfstate.*
 *.tfplan
+# Local Helm values (contain local-only secrets/config, never commit)
+values-local-*.yaml
