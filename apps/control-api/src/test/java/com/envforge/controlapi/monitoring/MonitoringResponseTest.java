@@ -134,6 +134,10 @@ class MonitoringResponseTest {
         MetricResponse response =
             MetricResponse.from(environment, snapshot);
 
+        assertEquals(
+            HealthStatus.DEGRADED,
+            response.status()
+        );
         assertNull(response.cpuUsagePercent());
         assertNull(response.memoryUsageBytes());
         assertEquals(
