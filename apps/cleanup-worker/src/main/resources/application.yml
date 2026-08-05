@@ -1,12 +1,30 @@
+server:
+  port: 8081
+
 spring:
   application:
     name: cleanup-worker
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/envforge}
+    username: ${DB_USERNAME:envforge}
+    password: ${DB_PASSWORD:envforge-local-password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: false
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
   endpoint:
     health:
       show-details: always
@@ -16,4 +34,6 @@ envforge:
     max-retries: 3
     retry-delay-seconds: 30
     job-timeout-seconds: 300
-    scheduler-enabled: false
+    scheduler-enabled: true
+    scheduler-delay-milliseconds: 10000
+    batch-size: 10
