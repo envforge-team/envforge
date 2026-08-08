@@ -1,0 +1,6 @@
+resource_group_name  = "rg-envforge-tfstate"
+storage_account_name = "REPLACE_WITH_REAL_STORAGE_ACCOUNT"
+container_name       = "tfstate"
+key                  = "envforge.shared.tfstate"
+use_azuread_auth     = true
+subscription_id      = "REPLACE_WITH_SUBSCRIPTION_ID"
