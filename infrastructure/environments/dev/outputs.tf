@@ -3,9 +3,14 @@ output "resource_group_name" {
   value       = data.azurerm_resource_group.envforge.name
 }
 
-output "azure_location" {
-  description = "Azure region of the existing resource group."
+output "resource_group_location" {
+  description = "Azure metadata location of the existing resource group."
   value       = data.azurerm_resource_group.envforge.location
+}
+
+output "deployment_location" {
+  description = "Azure region used for EnvForge resources."
+  value       = var.location
 }
 
 output "virtual_network_id" {

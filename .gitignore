@@ -50,3 +50,7 @@ crash.log
 crash.*.log
 # Local Helm values (contain local-only secrets/config, never commit)
 values-local-*.yaml
+
+
+
+/infrastructure/environments/dev/backend.hcl

@@ -1,5 +1,6 @@
 resource_group_name  = "rg-reliability-platform-dev"
 virtual_network_name = "vnet-envforge-dev"
+location             = "italynorth"
 
 virtual_network_address_space = [
   "10.20.0.0/16"

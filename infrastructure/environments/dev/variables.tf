@@ -41,3 +41,14 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+
+variable "location" {
+  description = "Allowed Azure region used for EnvForge development resources."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.location)) > 0
+    error_message = "The Azure deployment location must not be empty."
+  }
+}

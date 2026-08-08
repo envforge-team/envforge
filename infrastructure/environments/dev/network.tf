@@ -2,7 +2,7 @@ module "network" {
   source = "../../modules/network"
 
   resource_group_name = data.azurerm_resource_group.envforge.name
-  location            = data.azurerm_resource_group.envforge.location
+  location            = var.location
 
   virtual_network_name = var.virtual_network_name
   address_space        = var.virtual_network_address_space
