@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: env-reliability-demo
+  labels:
+    envforge.io/managed: "true"
+    envforge.io/template: "reliability-api"
+    envforge.io/owner: "raoul"
+    envforge.io/environment: "reliability-demo"
+    pod-security.kubernetes.io/enforce: "restricted"
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+  annotations:
+    envforge.io/expires-at: "2026-08-08T18:00:00Z"

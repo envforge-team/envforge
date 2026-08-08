@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reliability-demo-api
+  namespace: env-reliability-demo
+  labels:
+    app: reliability-demo-api
+    app.kubernetes.io/managed-by: envforge
+    envforge.io/environment: reliability-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: reliability-demo-api
+  template:
+    metadata:
+      labels:
+        app: reliability-demo-api
+        app.kubernetes.io/managed-by: envforge
+        envforge.io/environment: reliability-demo
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: reliability-demo-api
+          image: reliability-demo-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: APP_VERSION
+              value: "0.1.0"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 45
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"

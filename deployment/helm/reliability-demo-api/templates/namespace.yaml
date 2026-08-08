@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: env-{{ .Values.environmentName }}
+  labels:
+    envforge.io/managed: "true"
+    envforge.io/template: {{ .Values.template | quote }}
+    envforge.io/owner: {{ .Values.owner | quote }}
+    envforge.io/environment: {{ .Values.environmentName | quote }}
+    pod-security.kubernetes.io/enforce: "restricted"
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
