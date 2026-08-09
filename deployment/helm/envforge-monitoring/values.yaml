@@ -14,8 +14,8 @@ trafficGenerator:
 
   resources:
     requests:
-      cpu: 25m
-      memory: 32Mi
+      cpu: 50m
+      memory: 64Mi
     limits:
       cpu: 100m
       memory: 64Mi
@@ -30,7 +30,7 @@ metrics:
 
 serviceMonitor:
   enabled: false
-  path: /metrics
+  path: /actuator/prometheus
   interval: 15s
   scrapeTimeout: 5s
   additionalLabels: {}
