@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-generator
+  namespace: env-reliability-demo
+  labels:
+    app: traffic-generator
+    app.kubernetes.io/managed-by: envforge
+    envforge.io/environment: reliability-demo
+    envforge.io/component: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traffic-generator
+  template:
+    metadata:
+      labels:
+        app: traffic-generator
+        app.kubernetes.io/managed-by: envforge
+        envforge.io/environment: reliability-demo
+        envforge.io/component: monitoring
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: traffic-generator
+          image: envforge-traffic-generator:0.1.0
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: TARGET_URL
+              value: http://reliability-demo-api/work
+
+            - name: REQUESTS_PER_SECOND
+              value: "2"
+
+            - name: REQUEST_TIMEOUT_SECONDS
+              value: "5"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop:
+                - ALL
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
