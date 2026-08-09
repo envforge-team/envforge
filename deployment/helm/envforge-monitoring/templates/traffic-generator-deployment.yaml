@@ -1,0 +1,56 @@
+{{- if .Values.trafficGenerator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-generator
+  namespace: env-{{ .Values.environmentName }}
+  labels:
+    app: traffic-generator
+    app.kubernetes.io/managed-by: envforge
+    envforge.io/environment: {{ .Values.environmentName }}
+    envforge.io/component: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traffic-generator
+  template:
+    metadata:
+      labels:
+        app: traffic-generator
+        app.kubernetes.io/managed-by: envforge
+        envforge.io/environment: {{ .Values.environmentName }}
+        envforge.io/component: monitoring
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: traffic-generator
+          image: "{{ .Values.trafficGenerator.image.repository }}:{{ .Values.trafficGenerator.image.tag }}"
+          imagePullPolicy: {{ .Values.trafficGenerator.image.pullPolicy }}
+
+          env:
+            - name: TARGET_URL
+              value: {{ .Values.trafficGenerator.targetUrl | quote }}
+
+            - name: REQUESTS_PER_SECOND
+              value: {{ .Values.trafficGenerator.requestsPerSecond | quote }}
+
+            - name: REQUEST_TIMEOUT_SECONDS
+              value: {{ .Values.trafficGenerator.requestTimeoutSeconds | quote }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop:
+                - ALL
+
+          resources:
+            {{- toYaml .Values.trafficGenerator.resources | nindent 12 }}
+{{- end }}

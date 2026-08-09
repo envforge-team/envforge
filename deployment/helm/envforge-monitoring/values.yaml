@@ -1,0 +1,36 @@
+environmentName: reliability-demo
+
+trafficGenerator:
+  enabled: true
+
+  image:
+    repository: envforge-traffic-generator
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  targetUrl: http://reliability-demo-api/work
+  requestsPerSecond: "2"
+  requestTimeoutSeconds: "5"
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+metrics:
+  service:
+    enabled: true
+    name: reliability-demo-api-metrics
+    workloadSelector: reliability-demo-api
+    port: 8080
+    targetPort: 8080
+
+serviceMonitor:
+  enabled: false
+  path: /metrics
+  interval: 15s
+  scrapeTimeout: 5s
+  additionalLabels: {}
