@@ -1,0 +1,54 @@
+name: Control API CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/control-api/**"
+      - ".github/workflows/control-api-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/control-api/**"
+      - ".github/workflows/control-api-ci.yml"
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/control-api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: envforge
+          POSTGRES_USER: envforge
+          POSTGRES_PASSWORD: envforge-local-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U envforge"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Compile
+        run: ./mvnw -B compile
+
+      - name: Run tests
+        run: ./mvnw -B test
+
+      - name: Package
+        run: ./mvnw -B package -DskipTests
