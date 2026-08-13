@@ -46,3 +46,8 @@ output "aks_node_resource_group" {
   description = "Name of the resource group that contains AKS-managed infrastructure."
   value       = module.aks.node_resource_group
 }
+
+output "github_actions_identity_client_id" {
+  description = "Client ID of the GitHub Actions identity. Set as AZURE_CLIENT_ID in GitHub Actions (Ziua 26)."
+  value       = module.identities.github_actions_identity_client_id
+}

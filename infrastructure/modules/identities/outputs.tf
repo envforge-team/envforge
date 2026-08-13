@@ -27,3 +27,18 @@ output "aks_kubelet_identity_client_id" {
   description = "Client ID of the AKS kubelet user-assigned identity."
   value       = azurerm_user_assigned_identity.aks_kubelet.client_id
 }
+
+output "github_actions_identity_id" {
+  description = "Resource ID of the GitHub Actions user-assigned identity."
+  value       = azurerm_user_assigned_identity.github_actions.id
+}
+
+output "github_actions_identity_client_id" {
+  description = "Client ID of the GitHub Actions user-assigned identity. Used as AZURE_CLIENT_ID in GitHub Actions."
+  value       = azurerm_user_assigned_identity.github_actions.client_id
+}
+
+output "github_actions_identity_principal_id" {
+  description = "Principal (object) ID of the GitHub Actions user-assigned identity."
+  value       = azurerm_user_assigned_identity.github_actions.principal_id
+}

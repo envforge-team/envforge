@@ -28,3 +28,7 @@ aks_service_cidr                 = "10.30.0.0/16"
 aks_dns_service_ip               = "10.30.0.10"
 aks_default_node_pool_vm_size    = "Standard_B2s"
 aks_default_node_pool_node_count = 1
+
+github_actions_identity_name = "id-github-actions-envforge-dev"
+github_repository            = "envforge-team/envforge"
+github_federated_ref         = "refs/heads/main"

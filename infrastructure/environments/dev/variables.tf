@@ -99,3 +99,27 @@ variable "aks_default_node_pool_node_count" {
   type        = number
   default     = 1
 }
+
+variable "acr_id" {
+  description = "Resource ID of the Azure Container Registry (M2's module). Null until ACR is provisioned."
+  type        = string
+  default     = null
+}
+
+variable "github_actions_identity_name" {
+  description = "Name of the user-assigned identity used by GitHub Actions via OIDC federation."
+  type        = string
+  default     = "id-github-actions-envforge-dev"
+}
+
+variable "github_repository" {
+  description = "GitHub repository (org/repo) trusted to federate with the GitHub Actions identity."
+  type        = string
+  default     = "envforge-team/envforge"
+}
+
+variable "github_federated_ref" {
+  description = "Git ref (branch) allowed to exchange an OIDC token for Azure access."
+  type        = string
+  default     = "refs/heads/main"
+}
