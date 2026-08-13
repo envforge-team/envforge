@@ -1,0 +1,81 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ci"
+
+  - package-ecosystem: "maven"
+    directory: "/apps/control-api"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "control-api"
+
+  - package-ecosystem: "maven"
+    directory: "/apps/cleanup-worker"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "cleanup-worker"
+
+  - package-ecosystem: "maven"
+    directory: "/apps/reliability-demo-api"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "reliability-demo-api"
+
+  - package-ecosystem: "npm"
+    directory: "/apps/portal"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "portal"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/control-api"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/portal"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/reliability-demo-api"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/traffic-generator"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/static-web-demo"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
