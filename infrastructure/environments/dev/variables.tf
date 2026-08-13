@@ -52,3 +52,50 @@ variable "location" {
     error_message = "The Azure deployment location must not be empty."
   }
 }
+variable "aks_cluster_name" {
+  description = "Name of the AKS cluster."
+  type        = string
+  default     = "aks-envforge-dev"
+}
+
+variable "aks_dns_prefix" {
+  description = "DNS prefix for the AKS cluster API server."
+  type        = string
+  default     = "envforge-dev"
+}
+
+variable "aks_control_plane_identity_name" {
+  description = "Name of the user-assigned identity used by the AKS control plane."
+  type        = string
+  default     = "id-aks-controlplane-envforge-dev"
+}
+
+variable "aks_kubelet_identity_name" {
+  description = "Name of the user-assigned identity used by the AKS kubelet."
+  type        = string
+  default     = "id-aks-kubelet-envforge-dev"
+}
+
+variable "aks_service_cidr" {
+  description = "CIDR used for Kubernetes services."
+  type        = string
+  default     = "10.30.0.0/16"
+}
+
+variable "aks_dns_service_ip" {
+  description = "IP address assigned to the Kubernetes DNS service."
+  type        = string
+  default     = "10.30.0.10"
+}
+
+variable "aks_default_node_pool_vm_size" {
+  description = "VM size used by the AKS default (system) node pool."
+  type        = string
+  default     = "Standard_B2s"
+}
+
+variable "aks_default_node_pool_node_count" {
+  description = "Fixed number of nodes in the AKS default (system) node pool."
+  type        = number
+  default     = 1
+}

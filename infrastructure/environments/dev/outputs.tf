@@ -32,3 +32,17 @@ output "private_endpoints_subnet_id" {
   description = "Resource ID of the subnet reserved for Private Endpoints."
   value       = module.network.private_endpoints_subnet_id
 }
+output "aks_cluster_id" {
+  description = "Resource ID of the AKS cluster."
+  value       = module.aks.cluster_id
+}
+
+output "aks_cluster_name" {
+  description = "Name of the AKS cluster."
+  value       = module.aks.cluster_name
+}
+
+output "aks_node_resource_group" {
+  description = "Name of the resource group that contains AKS-managed infrastructure."
+  value       = module.aks.node_resource_group
+}

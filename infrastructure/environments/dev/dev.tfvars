@@ -20,3 +20,11 @@ tags = {
   managed-by  = "terraform"
   project     = "reliability-platform"
 }
+aks_cluster_name                 = "aks-envforge-dev"
+aks_dns_prefix                   = "envforge-dev"
+aks_control_plane_identity_name  = "id-aks-controlplane-envforge-dev"
+aks_kubelet_identity_name        = "id-aks-kubelet-envforge-dev"
+aks_service_cidr                 = "10.30.0.0/16"
+aks_dns_service_ip               = "10.30.0.10"
+aks_default_node_pool_vm_size    = "Standard_B2s"
+aks_default_node_pool_node_count = 1
