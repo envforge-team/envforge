@@ -9,7 +9,7 @@ module "identities" {
 
   aks_subnet_id     = module.network.aks_subnet_id
   resource_group_id = data.azurerm_resource_group.envforge.id
-  acr_id            = var.acr_id
+  acr_id            = module.acr.id
 
   github_actions_identity_name = var.github_actions_identity_name
   github_repository            = var.github_repository
