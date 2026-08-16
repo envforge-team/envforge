@@ -46,7 +46,6 @@ resource "azurerm_role_assignment" "aks_control_plane_managed_identity_operator"
 }
 
 resource "azurerm_role_assignment" "aks_kubelet_acr_pull" {
-  count                = var.acr_id != null ? 1 : 0
   scope                = var.acr_id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_user_assigned_identity.aks_kubelet.principal_id

@@ -61,9 +61,13 @@ variable "resource_group_id" {
 }
 
 variable "acr_id" {
-  description = "Resource ID of the Azure Container Registry. Null skips the AcrPull role assignment until the ACR module (M2) is available."
+  description = "Resource ID of the Azure Container Registry used to scope the AcrPull role assignment."
   type        = string
-  default     = null
+
+  validation {
+    condition     = length(trimspace(var.acr_id)) > 0
+    error_message = "The ACR resource ID must not be empty."
+  }
 }
 
 variable "github_actions_identity_name" {
