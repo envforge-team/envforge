@@ -1,0 +1,58 @@
+{{- if .Values.workload.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "envforge-workload.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "envforge-workload.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.workload.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "envforge-workload.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "envforge-workload.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        envforge.io/managed: "true"
+        envforge.io/environment: {{ .Values.environment.name | quote }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: static-web-demo
+          image: "{{ .Values.workload.image.repository }}:{{ .Values.workload.image.tag }}"
+          imagePullPolicy: {{ .Values.workload.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.workload.service.targetPort }}
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 101
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.workload.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.workload.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.workload.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.workload.readinessProbe.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.workload.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.workload.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.workload.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.workload.livenessProbe.failureThreshold }}
+          resources:
+            {{- toYaml .Values.workload.resources | nindent 12 }}
+{{- end }}

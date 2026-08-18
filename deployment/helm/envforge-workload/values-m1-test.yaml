@@ -2,7 +2,43 @@ environment:
   name: helm-demo-m1
   owner: bogdan
   template: static-web
-  expiresAt: "2026-08-02T18:00:00Z"
+  expiresAt: "2026-08-20T18:00:00Z"
+
+
+
+workload:
+  enabled: true
+  replicas: 1
+
+  image:
+    repository: envforge/static-web-demo
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+
+  readinessProbe:
+    path: /health
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    failureThreshold: 3
+
+  livenessProbe:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
 
 quota:
   enabled: true

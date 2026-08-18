@@ -1,0 +1,19 @@
+{{- if .Values.workload.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "envforge-workload.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "envforge-workload.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.workload.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ include "envforge-workload.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.workload.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}
