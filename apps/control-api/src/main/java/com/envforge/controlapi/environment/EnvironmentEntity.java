@@ -1,21 +1,21 @@
 package com.envforge.controlapi.environment;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
+import com.envforge.controlapi.deployment.DeploymentEntity;
+
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-
-import com.envforge.controlapi.deployment.DeploymentEntity;
 import jakarta.persistence.OneToMany;
-import java.util.List;
-import java.util.ArrayList;
-
-import jakarta.persistence.*;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "environments")
@@ -34,14 +34,22 @@ public class EnvironmentEntity {
     @Column(nullable = false, length = 50)
     private EnvironmentTemplate template;
 
-    @Column(name = "image_version", nullable = false, length = 100)
+    @Column(
+        name = "image_version",
+        nullable = false,
+        length = 100
+    )
     private String imageVersion;
 
     @Column(nullable = false)
     private int replicas;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "resource_profile", nullable = false, length = 20)
+    @Column(
+        name = "resource_profile",
+        nullable = false,
+        length = 20
+    )
     private ResourceProfile resourceProfile;
 
     @Enumerated(EnumType.STRING)
@@ -63,8 +71,12 @@ public class EnvironmentEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @OneToMany(mappedBy = "environment", cascade = CascadeType.ALL)
-private java.util.List<com.envforge.controlapi.deployment.DeploymentEntity> deployments = new java.util.ArrayList<>();
+    @OneToMany(
+        mappedBy = "environment",
+        cascade = CascadeType.ALL
+    )
+    private List<DeploymentEntity> deployments =
+        new ArrayList<>();
 
     protected EnvironmentEntity() {
     }
@@ -149,5 +161,13 @@ private java.util.List<com.envforge.controlapi.deployment.DeploymentEntity> depl
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public void changeStatus(
+        EnvironmentStatus newStatus,
+        Instant changedAt
+    ) {
+        this.status = Objects.requireNonNull(newStatus);
+        this.updatedAt = Objects.requireNonNull(changedAt);
     }
 }

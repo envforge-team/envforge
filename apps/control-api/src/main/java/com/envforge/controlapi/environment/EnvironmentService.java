@@ -3,9 +3,12 @@ package com.envforge.controlapi.environment;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.UUID;
 import java.util.List;
+import java.util.UUID;
 
+import com.envforge.controlapi.provisioning.EnvironmentRequestedEvent;
+
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,12 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class EnvironmentService {
 
     private final EnvironmentRepository environmentRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public EnvironmentService(
-        EnvironmentRepository environmentRepository
+        EnvironmentRepository environmentRepository,
+        ApplicationEventPublisher eventPublisher
     ) {
         this.environmentRepository = environmentRepository;
+        this.eventPublisher = eventPublisher;
         this.clock = Clock.systemUTC();
     }
 
@@ -41,6 +47,7 @@ public class EnvironmentService {
         }
 
         Instant now = Instant.now(clock);
+
         Instant expiresAt = now.plus(
             request.lifetimeHours(),
             ChronoUnit.HOURS
@@ -65,6 +72,10 @@ public class EnvironmentService {
         EnvironmentEntity saved =
             environmentRepository.save(environment);
 
+        eventPublisher.publishEvent(
+            new EnvironmentRequestedEvent(saved.getId())
+        );
+
         return EnvironmentResponse.from(saved);
     }
 
@@ -86,7 +97,4 @@ public class EnvironmentService {
                 () -> new EnvironmentNotFoundException(id)
             );
     }
-
-
-
 }

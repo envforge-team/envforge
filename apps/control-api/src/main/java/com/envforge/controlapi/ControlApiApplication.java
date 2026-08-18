@@ -6,8 +6,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class ControlApiApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(ControlApiApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(
+            ControlApiApplication.class,
+            args
+        );
+    }
 }
