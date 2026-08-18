@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: envforge-system
+  labels:
+    app.kubernetes.io/part-of: envforge
+    envforge.io/purpose: platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: envforge-observability
+  labels:
+    app.kubernetes.io/part-of: envforge
+    envforge.io/purpose: observability
