@@ -94,8 +94,19 @@ jobs:
             "${CHART_PATH}" \
             --values "${VALUES_FILE}"
 
-      - name: Render and validate manifests
+      - name: Prepare namespace and validate manifests
         run: |
+          kubectl create namespace "${NAMESPACE}" \
+            --dry-run=client \
+            --output yaml \
+            | kubectl apply --filename -
+
+          kubectl label namespace "${NAMESPACE}" \
+            app.kubernetes.io/part-of=envforge \
+            envforge.io/managed=true \
+            envforge.io/owner=github-actions \
+            --overwrite
+
           helm template \
             "${RELEASE_NAME}" \
             "${CHART_PATH}" \
@@ -111,15 +122,7 @@ jobs:
             --dry-run=server \
             --filename /tmp/envforge-rendered.yaml
 
-      - name: Create temporary namespace
-        run: |
-          kubectl create namespace "${NAMESPACE}"
-
-          kubectl label namespace "${NAMESPACE}" \
-            app.kubernetes.io/part-of=envforge \
-            envforge.io/managed=true \
-            envforge.io/owner=github-actions \
-            --overwrite
+      
 
       - name: Calculate expiration time
         run: |
