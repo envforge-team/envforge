@@ -26,7 +26,7 @@ aks_control_plane_identity_name  = "id-aks-controlplane-envforge-dev"
 aks_kubelet_identity_name        = "id-aks-kubelet-envforge-dev"
 aks_service_cidr                 = "10.30.0.0/16"
 aks_dns_service_ip               = "10.30.0.10"
-aks_default_node_pool_vm_size = "Standard_D2as_v7"
+aks_default_node_pool_vm_size    = "Standard_D2as_v7"
 aks_default_node_pool_node_count = 1
 
 github_actions_identity_name = "id-github-actions-envforge-dev"
