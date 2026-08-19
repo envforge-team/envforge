@@ -1,0 +1,240 @@
+name: M1 Provisioning E2E
+
+on:
+  workflow_dispatch:
+
+  pull_request:
+    paths:
+      - "apps/static-web-demo/**"
+      - "deployment/helm/envforge-workload/**"
+      - "deployment/kubernetes/local/**"
+      - ".github/workflows/m1-provisioning-e2e.yml"
+
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/static-web-demo/**"
+      - "deployment/helm/envforge-workload/**"
+      - "deployment/kubernetes/local/**"
+      - ".github/workflows/m1-provisioning-e2e.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m1-provisioning-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kind-helm-smoke-test:
+    name: Docker, Kind, Helm and smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      CLUSTER_NAME: envforge-ci
+      NAMESPACE: env-ci-static-demo
+      RELEASE_NAME: ci-static-demo
+      IMAGE_NAME: envforge/static-web-demo
+      IMAGE_TAG: 0.2.0
+      CHART_PATH: deployment/helm/envforge-workload
+      VALUES_FILE: deployment/helm/envforge-workload/values-m1-test.yaml
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v3.18.4
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.27.0
+          node_image: kindest/node:v1.32.2
+          kubectl_version: v1.32.2
+          cluster_name: envforge-ci
+          wait: 120s
+
+      - name: Verify Kubernetes cluster
+        run: |
+          kubectl config current-context
+          kubectl get nodes
+          kubectl wait \
+            --for=condition=Ready \
+            node \
+            --all \
+            --timeout=120s
+
+      - name: Build static web image
+        run: |
+          docker build \
+            --tag "${IMAGE_NAME}:${IMAGE_TAG}" \
+            apps/static-web-demo
+
+          docker image inspect \
+            "${IMAGE_NAME}:${IMAGE_TAG}"
+
+      - name: Load image into Kind
+        run: |
+          kind load docker-image \
+            "${IMAGE_NAME}:${IMAGE_TAG}" \
+            --name "${CLUSTER_NAME}"
+
+          docker exec "${CLUSTER_NAME}-control-plane" \
+            crictl images \
+            | grep static-web-demo
+
+      - name: Lint Helm chart
+        run: |
+          helm lint \
+            "${CHART_PATH}" \
+            --values "${VALUES_FILE}"
+
+      - name: Render and validate manifests
+        run: |
+          helm template \
+            "${RELEASE_NAME}" \
+            "${CHART_PATH}" \
+            --namespace "${NAMESPACE}" \
+            --values "${VALUES_FILE}" \
+            --set-string "environment.name=${RELEASE_NAME}" \
+            --set-string "environment.owner=github-actions" \
+            --set-string "workload.image.repository=${IMAGE_NAME}" \
+            --set-string "workload.image.tag=${IMAGE_TAG}" \
+            > /tmp/envforge-rendered.yaml
+
+          kubectl apply \
+            --dry-run=server \
+            --filename /tmp/envforge-rendered.yaml
+
+      - name: Create temporary namespace
+        run: |
+          kubectl create namespace "${NAMESPACE}"
+
+          kubectl label namespace "${NAMESPACE}" \
+            app.kubernetes.io/part-of=envforge \
+            envforge.io/managed=true \
+            envforge.io/owner=github-actions \
+            --overwrite
+
+      - name: Calculate expiration time
+        run: |
+          echo "ENVFORGE_EXPIRES_AT=$(
+            date \
+              --utc \
+              --date='+2 hours' \
+              '+%Y-%m-%dT%H:%M:%SZ'
+          )" >> "${GITHUB_ENV}"
+
+      - name: Install workload with Helm
+        run: |
+          helm upgrade \
+            --install \
+            "${RELEASE_NAME}" \
+            "${CHART_PATH}" \
+            --namespace "${NAMESPACE}" \
+            --values "${VALUES_FILE}" \
+            --set-string "environment.name=${RELEASE_NAME}" \
+            --set-string "environment.owner=github-actions" \
+            --set-string "environment.template=static-web" \
+            --set-string "environment.expiresAt=${ENVFORGE_EXPIRES_AT}" \
+            --set-string "workload.image.repository=${IMAGE_NAME}" \
+            --set-string "workload.image.tag=${IMAGE_TAG}" \
+            --set "workload.replicas=1" \
+            --wait \
+            --timeout 2m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status \
+            "deployment/${RELEASE_NAME}-envforge-workload" \
+            --namespace "${NAMESPACE}" \
+            --timeout=120s
+
+          kubectl get all \
+            --namespace "${NAMESPACE}"
+
+          kubectl get resourcequota,limitrange \
+            --namespace "${NAMESPACE}"
+
+          helm status \
+            "${RELEASE_NAME}" \
+            --namespace "${NAMESPACE}"
+
+      - name: Run HTTP smoke test
+        run: |
+          kubectl port-forward \
+            --namespace "${NAMESPACE}" \
+            "service/${RELEASE_NAME}-envforge-workload" \
+            18080:80 \
+            > /tmp/envforge-port-forward.log \
+            2>&1 &
+
+          PORT_FORWARD_PID=$!
+
+          cleanup_port_forward() {
+            kill "${PORT_FORWARD_PID}" 2>/dev/null || true
+          }
+
+          trap cleanup_port_forward EXIT
+
+          for ATTEMPT in $(seq 1 30)
+          do
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              http://127.0.0.1:18080/health
+            then
+              echo
+              echo "EnvForge health check passed"
+              exit 0
+            fi
+
+            echo "Waiting for the service: attempt ${ATTEMPT}/30"
+            sleep 2
+          done
+
+          echo "Health check failed"
+          cat /tmp/envforge-port-forward.log
+          exit 1
+
+      - name: Collect diagnostics
+        if: failure()
+        run: |
+          kubectl get all \
+            --namespace "${NAMESPACE}" \
+            --output wide \
+            || true
+
+          kubectl describe pods \
+            --namespace "${NAMESPACE}" \
+            || true
+
+          kubectl get events \
+            --namespace "${NAMESPACE}" \
+            --sort-by=.lastTimestamp \
+            || true
+
+          helm status \
+            "${RELEASE_NAME}" \
+            --namespace "${NAMESPACE}" \
+            || true
+
+      - name: Cleanup temporary environment
+        if: always()
+        run: |
+          helm uninstall \
+            "${RELEASE_NAME}" \
+            --namespace "${NAMESPACE}" \
+            || true
+
+          kubectl delete namespace \
+            "${NAMESPACE}" \
+            --wait=true \
+            --timeout=120s \
+            || true
