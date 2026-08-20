@@ -22,6 +22,10 @@ import com.envforge.controlapi.environment.EnvironmentStatus;
 import com.envforge.controlapi.environment.EnvironmentTemplate;
 import com.envforge.controlapi.environment.ResourceProfile;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,15 +41,20 @@ class EnvironmentProvisioningServiceTest {
     @Mock
     private EnvironmentProvisioner environmentProvisioner;
 
+    private SimpleMeterRegistry meterRegistry;
+
     private EnvironmentProvisioningService
         environmentProvisioningService;
 
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
+
         environmentProvisioningService =
             new EnvironmentProvisioningService(
                 environmentRepository,
-                environmentProvisioner
+                environmentProvisioner,
+                meterRegistry
             );
     }
 
@@ -54,19 +63,7 @@ class EnvironmentProvisioningServiceTest {
         EnvironmentEntity environment =
             createEnvironment("successful-demo");
 
-        when(
-            environmentRepository.findById(
-                environment.getId()
-            )
-        ).thenReturn(Optional.of(environment));
-
-        when(
-            environmentRepository.saveAndFlush(
-                any(EnvironmentEntity.class)
-            )
-        ).thenAnswer(
-            invocation -> invocation.getArgument(0)
-        );
+        configureRepository(environment);
 
         environmentProvisioningService.provision(
             environment.getId()
@@ -80,6 +77,32 @@ class EnvironmentProvisioningServiceTest {
 
         verify(environmentRepository, times(2))
             .saveAndFlush(environment);
+
+        Counter successCounter = meterRegistry
+            .get("envforge.provisioning.attempts")
+            .tags(
+                "outcome",
+                "success",
+                "template",
+                "static_web"
+            )
+            .counter();
+
+        assertThat(successCounter.count())
+            .isEqualTo(1.0);
+
+        Timer successTimer = meterRegistry
+            .get("envforge.provisioning.duration")
+            .tags(
+                "outcome",
+                "success",
+                "template",
+                "static_web"
+            )
+            .timer();
+
+        assertThat(successTimer.count())
+            .isEqualTo(1);
     }
 
     @Test
@@ -87,19 +110,7 @@ class EnvironmentProvisioningServiceTest {
         EnvironmentEntity environment =
             createEnvironment("failed-demo");
 
-        when(
-            environmentRepository.findById(
-                environment.getId()
-            )
-        ).thenReturn(Optional.of(environment));
-
-        when(
-            environmentRepository.saveAndFlush(
-                any(EnvironmentEntity.class)
-            )
-        ).thenAnswer(
-            invocation -> invocation.getArgument(0)
-        );
+        configureRepository(environment);
 
         doThrow(
             new IllegalStateException(
@@ -121,6 +132,32 @@ class EnvironmentProvisioningServiceTest {
 
         verify(environmentRepository, times(2))
             .saveAndFlush(environment);
+
+        Counter failureCounter = meterRegistry
+            .get("envforge.provisioning.attempts")
+            .tags(
+                "outcome",
+                "failure",
+                "template",
+                "static_web"
+            )
+            .counter();
+
+        assertThat(failureCounter.count())
+            .isEqualTo(1.0);
+
+        Timer failureTimer = meterRegistry
+            .get("envforge.provisioning.duration")
+            .tags(
+                "outcome",
+                "failure",
+                "template",
+                "static_web"
+            )
+            .timer();
+
+        assertThat(failureTimer.count())
+            .isEqualTo(1);
     }
 
     @Test
@@ -148,13 +185,43 @@ class EnvironmentProvisioningServiceTest {
         ).saveAndFlush(any(EnvironmentEntity.class));
 
         verifyNoInteractions(environmentProvisioner);
+
+        assertThat(
+            meterRegistry
+                .find("envforge.provisioning.attempts")
+                .counter()
+        ).isNull();
+
+        assertThat(
+            meterRegistry
+                .find("envforge.provisioning.duration")
+                .timer()
+        ).isNull();
+    }
+
+    private void configureRepository(
+        EnvironmentEntity environment
+    ) {
+        when(
+            environmentRepository.findById(
+                environment.getId()
+            )
+        ).thenReturn(Optional.of(environment));
+
+        when(
+            environmentRepository.saveAndFlush(
+                any(EnvironmentEntity.class)
+            )
+        ).thenAnswer(
+            invocation -> invocation.getArgument(0)
+        );
     }
 
     private EnvironmentEntity createEnvironment(
         String name
     ) {
         Instant now =
-            Instant.parse("2026-08-19T10:00:00Z");
+            Instant.parse("2026-08-21T10:00:00Z");
 
         return new EnvironmentEntity(
             UUID.randomUUID(),
