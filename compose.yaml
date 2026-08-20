@@ -49,9 +49,11 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
       - "3000:3000"
+    
     volumes:
       - envforge-grafana-data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/dashboards:/var/lib/grafana/dashboards/envforge:ro
     restart: unless-stopped
 
 volumes:
