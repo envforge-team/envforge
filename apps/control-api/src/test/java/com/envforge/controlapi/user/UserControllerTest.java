@@ -1,4 +1,5 @@
 package com.envforge.controlapi.user;
+
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet
     .request.MockMvcRequestBuilders.get;
@@ -23,18 +24,29 @@ import com.envforge.controlapi.security.AccessDeniedException;
 import com.envforge.controlapi.security.AuthorizationService;
 import com.envforge.controlapi.security.CurrentUser;
 import com.envforge.controlapi.security.CurrentUserProvider;
+import com.envforge.controlapi.security.SecurityMetrics;
+
 @WebMvcTest(UserController.class)
 class UserControllerTest {
+
     @Autowired
     private MockMvc mockMvc;
+
     @MockitoBean
     private UserService userService;
+
     @MockitoBean
     private CurrentUserProvider currentUserProvider;
+
     @MockitoBean
     private AuthorizationService authorizationService;
+
     @MockitoBean
     private AuditService auditService;
+
+    @MockitoBean
+    private SecurityMetrics securityMetrics;
+
     @Test
     void shouldReturnCurrentUserProfile() throws Exception {
         CurrentUser currentUser = new CurrentUser(
@@ -56,6 +68,7 @@ class UserControllerTest {
         );
         when(userService.getOrCreateCurrentUser(currentUser))
             .thenReturn(user);
+
         mockMvc.perform(get("/api/me"))
             .andExpect(status().isOk())
             .andExpect(
@@ -66,6 +79,7 @@ class UserControllerTest {
                 jsonPath("$.role").value("ADMIN")
             );
     }
+
     @Test
     void shouldUpdateRoleAsAdmin() throws Exception {
         UUID id = UUID.randomUUID();
@@ -88,11 +102,13 @@ class UserControllerTest {
         );
         when(userService.updateRole(id, Role.OPERATOR))
             .thenReturn(updated);
+
         String request = """
             {
               "role": "OPERATOR"
             }
             """;
+
         mockMvc.perform(
                 put("/api/users/{id}/role", id)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -103,6 +119,7 @@ class UserControllerTest {
                 jsonPath("$.role").value("OPERATOR")
             );
     }
+
     @Test
     void shouldForbidRoleUpdateForNonAdmin() throws Exception {
         UUID id = UUID.randomUUID();
@@ -121,11 +138,13 @@ class UserControllerTest {
             )
         ).when(authorizationService)
             .requireAdmin(operator, "UPDATE_USER_ROLE");
+
         String request = """
             {
               "role": "ADMIN"
             }
             """;
+
         mockMvc.perform(
                 put("/api/users/{id}/role", id)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -136,6 +155,7 @@ class UserControllerTest {
                 jsonPath("$.status").value(403)
             );
     }
+
     @Test
     void shouldRejectInvalidRoleValue() throws Exception {
         UUID id = UUID.randomUUID();
@@ -148,11 +168,13 @@ class UserControllerTest {
                     Role.ADMIN
                 )
             );
+
         String request = """
             {
               "role": "SUPERUSER"
             }
             """;
+
         mockMvc.perform(
                 put("/api/users/{id}/role", id)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -160,6 +182,7 @@ class UserControllerTest {
             )
             .andExpect(status().isBadRequest());
     }
+
     @Test
     void shouldReturnNotFoundWhenUpdatingUnknownUser()
         throws Exception {
@@ -175,11 +198,13 @@ class UserControllerTest {
             );
         when(userService.updateRole(id, Role.OPERATOR))
             .thenThrow(new UserNotFoundException(id));
+
         String request = """
             {
               "role": "OPERATOR"
             }
             """;
+
         mockMvc.perform(
                 put("/api/users/{id}/role", id)
                     .contentType(MediaType.APPLICATION_JSON)

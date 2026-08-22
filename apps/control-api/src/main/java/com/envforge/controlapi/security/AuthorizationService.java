@@ -1,9 +1,7 @@
 package com.envforge.controlapi.security;
 
 import java.util.Set;
-
 import org.springframework.stereotype.Service;
-
 import com.envforge.controlapi.audit.AuditResult;
 import com.envforge.controlapi.audit.AuditService;
 import com.envforge.controlapi.user.Role;
@@ -12,14 +10,20 @@ import com.envforge.controlapi.user.Role;
 public class AuthorizationService {
 
     private final AuditService auditService;
+    private final SecurityMetrics securityMetrics;
 
-    public AuthorizationService(AuditService auditService) {
+    public AuthorizationService(
+        AuditService auditService,
+        SecurityMetrics securityMetrics
+    ) {
         this.auditService = auditService;
+        this.securityMetrics = securityMetrics;
     }
 
     /**
      * Allows the action only if the user's role is one of allowedRoles.
-     * Any denial is recorded as a FAILURE audit event before throwing.
+     * Any denial is recorded as a FAILURE audit event and a 403 metric
+     * before throwing.
      */
     public void requireRole(CurrentUser user, String action, Role... allowedRoles) {
         Set<Role> allowed = Set.of(allowedRoles);
@@ -34,6 +38,7 @@ public class AuthorizationService {
                 AuditResult.FAILURE,
                 message
             );
+            securityMetrics.recordForbidden();
             throw new AccessDeniedException(message);
         }
     }
@@ -70,6 +75,7 @@ public class AuthorizationService {
                 AuditResult.FAILURE,
                 message
             );
+            securityMetrics.recordForbidden();
             throw new AccessDeniedException(message);
         }
     }

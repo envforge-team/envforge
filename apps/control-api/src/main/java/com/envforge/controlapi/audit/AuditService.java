@@ -2,18 +2,22 @@ package com.envforge.controlapi.audit;
 
 import java.time.Instant;
 import java.util.UUID;
-
 import org.springframework.stereotype.Service;
-
 import com.envforge.controlapi.security.CurrentUser;
+import com.envforge.controlapi.security.SecurityMetrics;
 
 @Service
 public class AuditService {
 
     private final AuditEventRepository auditEventRepository;
+    private final SecurityMetrics securityMetrics;
 
-    public AuditService(AuditEventRepository auditEventRepository) {
+    public AuditService(
+        AuditEventRepository auditEventRepository,
+        SecurityMetrics securityMetrics
+    ) {
         this.auditEventRepository = auditEventRepository;
+        this.securityMetrics = securityMetrics;
     }
 
     public void record(
@@ -45,5 +49,6 @@ public class AuditService {
             Instant.now()
         );
         auditEventRepository.save(event);
+        securityMetrics.recordAuditEvent(result);
     }
 }

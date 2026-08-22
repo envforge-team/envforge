@@ -1,7 +1,6 @@
 package com.envforge.controlapi.user;
 
 import java.util.UUID;
-
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,12 +9,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import com.envforge.controlapi.audit.AuditResult;
 import com.envforge.controlapi.audit.AuditService;
 import com.envforge.controlapi.security.AuthorizationService;
 import com.envforge.controlapi.security.CurrentUser;
 import com.envforge.controlapi.security.CurrentUserProvider;
+import com.envforge.controlapi.security.SecurityMetrics;
 
 @RestController
 @RequestMapping("/api")
@@ -25,23 +24,27 @@ public class UserController {
     private final CurrentUserProvider currentUserProvider;
     private final AuthorizationService authorizationService;
     private final AuditService auditService;
+    private final SecurityMetrics securityMetrics;
 
     public UserController(
         UserService userService,
         CurrentUserProvider currentUserProvider,
         AuthorizationService authorizationService,
-        AuditService auditService
+        AuditService auditService,
+        SecurityMetrics securityMetrics
     ) {
         this.userService = userService;
         this.currentUserProvider = currentUserProvider;
         this.authorizationService = authorizationService;
         this.auditService = auditService;
+        this.securityMetrics = securityMetrics;
     }
 
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me() {
         CurrentUser currentUser = currentUserProvider.getCurrentUser();
         UserEntity user = userService.getOrCreateCurrentUser(currentUser);
+        securityMetrics.recordLogin();
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
@@ -52,9 +55,7 @@ public class UserController {
     ) {
         CurrentUser currentUser = currentUserProvider.getCurrentUser();
         authorizationService.requireAdmin(currentUser, "UPDATE_USER_ROLE");
-
         UserEntity updated = userService.updateRole(id, request.role());
-
         auditService.record(
             currentUser,
             "UPDATE_USER_ROLE",
@@ -63,7 +64,6 @@ public class UserController {
             AuditResult.SUCCESS,
             "Role changed to " + request.role()
         );
-
         return ResponseEntity.ok(UserResponse.from(updated));
     }
 }

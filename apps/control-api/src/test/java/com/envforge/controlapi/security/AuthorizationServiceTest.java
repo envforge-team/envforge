@@ -1,4 +1,5 @@
 package com.envforge.controlapi.security;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.any;
@@ -10,11 +11,16 @@ import org.junit.jupiter.api.Test;
 import com.envforge.controlapi.audit.AuditResult;
 import com.envforge.controlapi.audit.AuditService;
 import com.envforge.controlapi.user.Role;
+
 class AuthorizationServiceTest {
+
     private final AuditService auditService =
         mock(AuditService.class);
+    private final SecurityMetrics securityMetrics =
+        mock(SecurityMetrics.class);
     private final AuthorizationService authorizationService =
-        new AuthorizationService(auditService);
+        new AuthorizationService(auditService, securityMetrics);
+
     @Test
     void requireRoleThrowsAndRecordsAuditOnDenial() {
         CurrentUser user = new CurrentUser(
@@ -23,6 +29,7 @@ class AuthorizationServiceTest {
             "User One",
             Role.USER
         );
+
         assertThrows(
             AccessDeniedException.class,
             () -> authorizationService.requireRole(
@@ -31,6 +38,7 @@ class AuthorizationServiceTest {
                 Role.ADMIN
             )
         );
+
         verify(auditService).record(
             eq(user),
             eq("UPDATE_USER_ROLE"),
@@ -39,7 +47,9 @@ class AuthorizationServiceTest {
             eq(AuditResult.FAILURE),
             any(String.class)
         );
+        verify(securityMetrics).recordForbidden();
     }
+
     @Test
     void requireRoleAllowsMatchingRole() {
         CurrentUser admin = new CurrentUser(
@@ -48,6 +58,7 @@ class AuthorizationServiceTest {
             "Admin One",
             Role.ADMIN
         );
+
         assertDoesNotThrow(() ->
             authorizationService.requireRole(
                 admin,
@@ -56,6 +67,7 @@ class AuthorizationServiceTest {
             )
         );
     }
+
     @Test
     void requireOwnerOrAdminAllowsOwnerOperator() {
         CurrentUser owner = new CurrentUser(
@@ -64,6 +76,7 @@ class AuthorizationServiceTest {
             "Owner One",
             Role.OPERATOR
         );
+
         assertDoesNotThrow(() ->
             authorizationService.requireOwnerOrAdmin(
                 owner,
@@ -72,6 +85,7 @@ class AuthorizationServiceTest {
             )
         );
     }
+
     @Test
     void requireOwnerOrAdminDeniesNonOwnerOperator() {
         CurrentUser notOwner = new CurrentUser(
@@ -80,6 +94,7 @@ class AuthorizationServiceTest {
             "Someone Else",
             Role.OPERATOR
         );
+
         assertThrows(
             AccessDeniedException.class,
             () -> authorizationService.requireOwnerOrAdmin(
@@ -88,5 +103,6 @@ class AuthorizationServiceTest {
                 "owner@envforge.dev"
             )
         );
+        verify(securityMetrics).recordForbidden();
     }
 }
