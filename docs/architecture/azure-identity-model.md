@@ -68,3 +68,42 @@ actually needs.
   (`module.network.aks_subnet_id`) and will be reused directly.
 - Coordinate with M1/M4 before applying `identities` module role
   assignments that reference resources owned by their modules.
+
+## Ziua 24 - verificare plan si permisiuni (fara apply)
+
+Verificare facuta doar cu `terraform plan`, fara `terraform apply` - echipa a
+decis sa opreasca apply-ul temporar (subscription quota blocata pentru AKS).
+Clusterul local de dezvoltare a trecut pe Kind.
+
+### Permisiuni module aks/identities - verificate, deja minime
+- `aks_control_plane_network_contributor`: scope = doar subnet-ul AKS, nu tot VNet-ul
+- `aks_control_plane_managed_identity_operator`: scope = doar identitatea kubelet
+- `aks_kubelet_acr_pull`: scope = doar ACR-ul (modulul lui M2)
+- `github_actions_contributor`: scope = tot resource group-ul - justificat, e
+  identitatea CI comuna pentru intreg pipeline-ul de infra al echipei, nu doar
+  pentru modulele mele; scoparea la nivel de RG (nu subscriptie) e limita corecta
+
+Nu au fost gasite permisiuni de redus in modulele proprii.
+
+### Permisiuni echipa (toti cei 4 membri) - neschimbate
+Toti cei 4 membri au inca `Contributor` + `Role Based Access Control
+Administrator` pe tot RG-ul, la fel ca la Ziua 21. Ramane decizia justificata
+atunci: echipa mica, mediu de dev/learning, fiecare are nevoie de RBAC
+Administrator ca sa-si aplice propriile role assignment-uri din Terraform.
+
+### Descoperire: identitate neurmarita in state
+Exista deja in Azure o identitate `id-github-actions-envforge-dev` cu rol
+Contributor pe RG, cu exact numele definit in modulul `identities`, dar
+`terraform plan` o arata ca `+ create` - nu e in state-ul remote comun.
+Activity log (ultimele 30 zile) nu arata cine a creat-o. Nu a fost inca
+importata in state - de facut inainte de orice `terraform apply` viitor,
+altfel Terraform va incerca sa creeze un duplicat.
+
+### Blocaj neschimbat: state modul network
+`module.network` (vnet + 2 subnet-uri) tot apare ca `+ create` desi exista in
+Azure - discutat la Ziua 21-24, ramane blocat pe coordonare cu M1.
+
+### Concluzie Ziua 24
+Ziua 25 (creare efectiva AKS) ramane in asteptare pana se rezolva subscription
+quota la nivel de echipa si pana se reconciliaza state-ul (identitate GitHub
+Actions + modul network) inainte de orice apply viitor.
