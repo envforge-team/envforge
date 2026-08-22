@@ -1,0 +1,86 @@
+{
+  "id": null,
+  "uid": "envforge-security-overview",
+  "title": "EnvForge / Security overview",
+  "tags": ["envforge", "security"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Login rate",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+          "expr": "sum(rate(envforge_security_logins_total[5m]))",
+          "legendFormat": "logins/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Denied access rate (401/403) by status",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+          "expr": "sum by (status) (rate(envforge_security_http_denied_total[5m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Audit events by result",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+          "expr": "sum by (result) (rate(envforge_security_audit_events_total[5m]))",
+          "legendFormat": "{{result}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Denied access (last 1h)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+          "expr": "sum(increase(envforge_security_http_denied_total[1h]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Logins (last 1h)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "envforge-prometheus" },
+          "expr": "sum(increase(envforge_security_logins_total[1h]))",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

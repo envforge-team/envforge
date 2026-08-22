@@ -1,0 +1,12 @@
+groups:
+  - name: envforge-security
+    rules:
+      - alert: ExcessiveDeniedAccess
+        expr: sum(increase(envforge_security_http_denied_total[5m])) > 10
+        for: 1m
+        labels:
+          severity: warning
+          team: security-identity-platform
+        annotations:
+          summary: "Rata de acces refuzat (401/403) este neobisnuit de mare pe control-api"
+          description: "Peste {{ $value }} raspunsuri 401/403 in ultimele 5 minute. Posibil atac de tip brute-force, token compromis sau bug de autorizare in AuthorizationService."
