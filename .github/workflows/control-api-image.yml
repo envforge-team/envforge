@@ -1,0 +1,38 @@
+name: Control API Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/control-api/**"
+      - ".github/workflows/control-api-image.yml"
+  pull_request:
+    paths:
+      - "apps/control-api/**"
+      - ".github/workflows/control-api-image.yml"
+
+jobs:
+  build-image:
+    name: Build Control API image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: image
+        run: |
+          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        run: |
+          docker build \
+            -t envforge/control-api:${{ steps.image.outputs.tag }} \
+            ./apps/control-api
+
+      - name: Verify image
+        run: |
+          docker image inspect envforge/control-api:${{ steps.image.outputs.tag }}
+
