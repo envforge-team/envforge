@@ -53,4 +53,5 @@ values-local-*.yaml
 
 
 
-/infrastructure/environments/dev/backend.hcl
+/infrastructure/environments/dev/backend.hcl*.tfplan
+tfplan.out
