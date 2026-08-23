@@ -2,19 +2,22 @@ package com.envforge.controlapi.security;
 
 import com.envforge.controlapi.user.Role;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
- * Temporary CurrentUserProvider for the permissive development phase.
+ * CurrentUserProvider for local development and tests (no real
+ * authentication - see SecurityConfig). Active whenever the "entra"
+ * profile is NOT set. Resolves the current user from debug headers
+ * instead of a validated JWT.
  *
- * There is no real authentication yet (see SecurityConfig), so the
- * current user is resolved from debug headers instead of a validated
- * JWT. Replace this implementation in Săptămâna 7 once Entra ID / a JWT
- * resource server is wired in — callers (AuditService, the future
- * AuthorizationService) should not need to change, since they only
- * depend on the CurrentUserProvider interface.
+ * See EntraIdCurrentUserProvider for the real, JWT-backed implementation
+ * used when running with --spring.profiles.active=entra (Ziua 31). Callers
+ * (AuditService, AuthorizationService) do not need to change, since they
+ * only depend on the CurrentUserProvider interface.
  */
 @Component
+@Profile("!entra")
 public class DevCurrentUserProvider implements CurrentUserProvider {
 
     private static final String DEBUG_USER_EMAIL_HEADER = "X-Debug-User-Email";
