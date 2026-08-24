@@ -259,7 +259,10 @@ RECORDED_TARGETS_VALUE=""
 
 for ATTEMPT in $(seq 1 18); do
   RECORDED_TARGETS="$(
-    curl -GsS       "http://localhost:${PROM_PORT}/api/v1/query"       --data-urlencode       'query=envforge_reliability:targets_up'
+    curl -GsS \
+      "http://localhost:${PROM_PORT}/api/v1/query" \
+      --data-urlencode \
+      'query=envforge_reliability:targets_up'
   )"
 
   RECORDED_TARGETS_VALUE="$(
@@ -277,10 +280,18 @@ if results:
   )"
 
   if [ -n "${RECORDED_TARGETS_VALUE}" ]; then
-    break
+    if python3 - "${RECORDED_TARGETS_VALUE}" <<'PYTHON'
+import sys
+
+value = float(sys.argv[1])
+raise SystemExit(0 if value >= 2 else 1)
+PYTHON
+    then
+      break
+    fi
   fi
 
-  echo     "Recording rule not evaluated yet "     "(attempt ${ATTEMPT}/18); waiting 5s..."
+  echo     "Recording rule not ready yet: "     "value=${RECORDED_TARGETS_VALUE:-none} "     "(attempt ${ATTEMPT}/18); waiting 5s..."
 
   sleep 5
 done
@@ -296,7 +307,7 @@ value = float(sys.argv[1])
 
 if value < 2:
     raise SystemExit(
-        f"Expected at least 2 recorded targets UP, got {value:g}"
+        f"Expected at least 2 recorded targets UP after retries, got {value:g}"
     )
 
 print(f"[OK] Recording rule reports {value:g} workload targets UP")
