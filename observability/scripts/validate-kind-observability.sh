@@ -212,25 +212,44 @@ print(f"[OK] Prometheus /work request count = {value:g}")
 echo
 echo "=== Prometheus recording rules ==="
 
-RECORDED_TARGETS="$(
-  curl -GsS \
-    "http://localhost:${PROM_PORT}/api/v1/query" \
-    --data-urlencode \
-    'query=envforge_reliability:targets_up'
-)"
+RECORDED_TARGETS_VALUE=""
 
-printf '%s' "${RECORDED_TARGETS}" |
-python3 -c '
+for ATTEMPT in $(seq 1 18); do
+  RECORDED_TARGETS="$(
+    curl -GsS       "http://localhost:${PROM_PORT}/api/v1/query"       --data-urlencode       'query=envforge_reliability:targets_up'
+  )"
+
+  RECORDED_TARGETS_VALUE="$(
+    printf '%s' "${RECORDED_TARGETS}" |
+    python3 -c '
 import json
 import sys
 
 data = json.load(sys.stdin)
 results = data["data"]["result"]
 
-if not results:
-    raise SystemExit("Recording rule targets_up returned no result")
+if results:
+    print(results[0]["value"][1])
+'
+  )"
 
-value = float(results[0]["value"][1])
+  if [ -n "${RECORDED_TARGETS_VALUE}" ]; then
+    break
+  fi
+
+  echo     "Recording rule not evaluated yet "     "(attempt ${ATTEMPT}/18); waiting 5s..."
+
+  sleep 5
+done
+
+if [ -z "${RECORDED_TARGETS_VALUE}" ]; then
+  fail "Recording rule targets_up returned no result after 90 seconds"
+fi
+
+python3 - "${RECORDED_TARGETS_VALUE}" <<'PYTHON'
+import sys
+
+value = float(sys.argv[1])
 
 if value < 2:
     raise SystemExit(
@@ -238,7 +257,7 @@ if value < 2:
     )
 
 print(f"[OK] Recording rule reports {value:g} workload targets UP")
-'
+PYTHON
 
 echo
 echo "=== Loki validation ==="
