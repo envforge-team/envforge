@@ -247,6 +247,24 @@ jobs:
             --namespace "${MONITORING_NAMESPACE}" \
             envforge-reliability-recording-rules
 
+      - name: Install reliability alerts and dashboard
+        run: |
+          kubectl apply \
+            --filename \
+            observability/kubernetes/reliability-alert-rules.yaml
+
+          kubectl apply \
+            --filename \
+            observability/kubernetes/reliability-dashboard-configmap.yaml
+
+          kubectl get prometheusrule \
+            --namespace "${MONITORING_NAMESPACE}" \
+            envforge-reliability-alert-rules
+
+          kubectl get configmap \
+            --namespace "${MONITORING_NAMESPACE}" \
+            envforge-reliability-dashboard
+
       - name: Wait for initial telemetry
         run: |
           kubectl get pods \

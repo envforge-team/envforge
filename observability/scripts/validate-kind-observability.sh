@@ -314,6 +314,59 @@ print(f"[OK] Recording rule reports {value:g} workload targets UP")
 PYTHON
 
 echo
+echo "=== Prometheus reliability alerts ==="
+
+ALERTS_READY=""
+
+for ATTEMPT in $(seq 1 18); do
+  ALERT_RULES="$(
+    curl -fsS       "http://localhost:${PROM_PORT}/api/v1/rules?type=alert"
+  )"
+
+  ALERTS_READY="$(
+    printf '%s' "${ALERT_RULES}" |
+    python3 -c '
+import json
+import sys
+
+wanted = {
+    "EnvForgeReliabilityTargetDown",
+    "EnvForgeReliabilityHigh5xxRatio",
+    "EnvForgeReliabilityHighLatency",
+    "EnvForgeReliabilityHighCpu",
+}
+
+data = json.load(sys.stdin)
+
+found = set()
+
+for group in data["data"]["groups"]:
+    for rule in group.get("rules", []):
+        name = rule.get("name")
+        if name in wanted:
+            found.add(name)
+
+if found == wanted:
+    print("ready")
+'
+  )"
+
+  if [ "${ALERTS_READY}" = "ready" ]; then
+    break
+  fi
+
+  echo     "Reliability alert rules not ready yet "     "(attempt ${ATTEMPT}/18); waiting 5s..."
+
+  sleep 5
+done
+
+if [ "${ALERTS_READY}" != "ready" ]; then
+  fail "Reliability alert rules were not loaded after 90 seconds"
+fi
+
+ok "Prometheus loaded all 4 reliability alert rules"
+
+echo
 echo "=== Loki validation ==="
 
 LOKI_RESULT="$(
@@ -391,6 +444,36 @@ curl -fsS \
   >/dev/null
 
 ok "Grafana can reach Loki datasource"
+
+DASHBOARD="$(
+  curl -fsS \
+    -u "admin:${GRAFANA_PASSWORD}" \
+    "http://localhost:${GRAFANA_PORT}/api/dashboards/uid/envforge-reliability"
+)"
+
+printf '%s' "${DASHBOARD}" |
+python3 -c '
+import json
+import sys
+
+data = json.load(sys.stdin)
+dashboard = data["dashboard"]
+
+if dashboard.get("uid") != "envforge-reliability":
+    raise SystemExit("Reliability dashboard UID is invalid")
+
+panels = dashboard.get("panels", [])
+
+if len(panels) < 10:
+    raise SystemExit(
+        f"Expected at least 10 dashboard panels, got {len(panels)}"
+    )
+
+print(
+    f"[OK] Grafana reliability dashboard loaded "
+    f"with {len(panels)} panels"
+)
+'
 
 echo
 echo "======================================"

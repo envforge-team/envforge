@@ -1,0 +1,51 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: envforge-reliability-alert-rules
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: envforge
+    app.kubernetes.io/component: monitoring
+spec:
+  groups:
+    - name: envforge.reliability.alerts
+      rules:
+        - alert: EnvForgeReliabilityTargetDown
+          expr: envforge_reliability:targets_up < 2
+          for: 1m
+          labels:
+            severity: critical
+            component: reliability-demo-api
+          annotations:
+            summary: "Reliability Demo API target is down"
+            description: "Fewer than two reliability-demo-api targets are available."
+
+        - alert: EnvForgeReliabilityHigh5xxRatio
+          expr: envforge_reliability:http_5xx_ratio:rate5m > 0.05
+          for: 1m
+          labels:
+            severity: critical
+            component: reliability-demo-api
+          annotations:
+            summary: "High HTTP 5xx ratio"
+            description: "More than 5% of requests returned 5xx responses over the last 5 minutes."
+
+        - alert: EnvForgeReliabilityHighLatency
+          expr: envforge_reliability:http_avg_latency_seconds:rate5m > 0.5
+          for: 2m
+          labels:
+            severity: warning
+            component: reliability-demo-api
+          annotations:
+            summary: "High HTTP latency"
+            description: "Average HTTP latency is above 500 ms."
+
+        - alert: EnvForgeReliabilityHighCpu
+          expr: envforge_reliability:process_cpu_usage:avg > 0.80
+          for: 2m
+          labels:
+            severity: warning
+            component: reliability-demo-api
+          annotations:
+            summary: "High process CPU usage"
+            description: "Average application process CPU usage is above 80%."
