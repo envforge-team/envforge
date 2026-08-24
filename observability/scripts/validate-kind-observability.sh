@@ -151,15 +151,19 @@ wait_http \
 echo
 echo "=== Prometheus validation ==="
 
-PROM_UP="$(
-  curl -GsS \
-    "http://localhost:${PROM_PORT}/api/v1/query" \
-    --data-urlencode \
-    'query=up{service="reliability-demo-api-metrics"}'
-)"
+PROM_TARGETS_READY=""
 
-printf '%s' "${PROM_UP}" |
-python3 -c '
+for ATTEMPT in $(seq 1 18); do
+  PROM_UP="$(
+    curl -GsS \
+      "http://localhost:${PROM_PORT}/api/v1/query" \
+      --data-urlencode \
+      'query=up{service="reliability-demo-api-metrics"}'
+  )"
+
+  PROM_TARGETS_READY="$(
+    printf '%s' "${PROM_UP}" |
+    python3 -c '
 import json
 import sys
 
@@ -167,31 +171,47 @@ data = json.load(sys.stdin)
 results = data["data"]["result"]
 
 if len(results) < 2:
-    raise SystemExit(
-        f"Expected at least 2 Prometheus targets, got {len(results)}"
-    )
+    print("")
+    raise SystemExit(0)
 
-bad = [
-    item
-    for item in results
-    if float(item["value"][1]) != 1.0
-]
+values = [float(item["value"][1]) for item in results]
 
-if bad:
-    raise SystemExit("One or more Prometheus targets are not UP")
+if not all(value == 1.0 for value in values):
+    print("")
+    raise SystemExit(0)
 
-print(f"[OK] Prometheus reports {len(results)} workload targets UP")
+print(len(results))
 '
+  )"
 
-HTTP_METRICS="$(
-  curl -GsS \
-    "http://localhost:${PROM_PORT}/api/v1/query" \
-    --data-urlencode \
-    'query=sum(http_server_requests_seconds_count{namespace="env-reliability-demo",uri="/work"})'
-)"
+  if [ -n "${PROM_TARGETS_READY}" ]; then
+    break
+  fi
 
-printf '%s' "${HTTP_METRICS}" |
-python3 -c '
+  echo     "Prometheus targets not ready yet "     "(attempt ${ATTEMPT}/18); waiting 5s..."
+
+  sleep 5
+done
+
+if [ -z "${PROM_TARGETS_READY}" ]; then
+  fail "Expected at least 2 Prometheus targets UP after 90 seconds"
+fi
+
+ok "Prometheus reports ${PROM_TARGETS_READY} workload targets UP"
+
+HTTP_REQUEST_COUNT=""
+
+for ATTEMPT in $(seq 1 12); do
+  HTTP_METRICS="$(
+    curl -GsS \
+      "http://localhost:${PROM_PORT}/api/v1/query" \
+      --data-urlencode \
+      'query=sum(http_server_requests_seconds_count{namespace="env-reliability-demo",uri="/work"})'
+  )"
+
+  HTTP_REQUEST_COUNT="$(
+    printf '%s' "${HTTP_METRICS}" |
+    python3 -c '
 import json
 import sys
 
@@ -199,15 +219,38 @@ data = json.load(sys.stdin)
 results = data["data"]["result"]
 
 if not results:
-    raise SystemExit("No /work request metric found")
+    print("")
+    raise SystemExit(0)
 
 value = float(results[0]["value"][1])
 
 if value <= 0:
-    raise SystemExit("/work request count is not greater than zero")
+    print("")
+    raise SystemExit(0)
 
-print(f"[OK] Prometheus /work request count = {value:g}")
+print(value)
 '
+  )"
+
+  if [ -n "${HTTP_REQUEST_COUNT}" ]; then
+    break
+  fi
+
+  echo     "HTTP workload metrics not ready yet "     "(attempt ${ATTEMPT}/12); waiting 5s..."
+
+  sleep 5
+done
+
+if [ -z "${HTTP_REQUEST_COUNT}" ]; then
+  fail "No /work request metric available after 60 seconds"
+fi
+
+python3 - "${HTTP_REQUEST_COUNT}" <<'PYTHON'
+import sys
+
+value = float(sys.argv[1])
+print(f"[OK] Prometheus /work request count = {value:g}")
+PYTHON
 
 echo
 echo "=== Prometheus recording rules ==="
