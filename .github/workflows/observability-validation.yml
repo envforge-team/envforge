@@ -237,6 +237,16 @@ jobs:
             --wait \
             --timeout 5m
 
+      - name: Install Prometheus recording rules
+        run: |
+          kubectl apply \
+            --filename \
+            observability/kubernetes/reliability-recording-rules.yaml
+
+          kubectl get prometheusrule \
+            --namespace "${MONITORING_NAMESPACE}" \
+            envforge-reliability-recording-rules
+
       - name: Wait for initial telemetry
         run: |
           kubectl get pods \

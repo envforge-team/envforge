@@ -210,6 +210,37 @@ print(f"[OK] Prometheus /work request count = {value:g}")
 '
 
 echo
+echo "=== Prometheus recording rules ==="
+
+RECORDED_TARGETS="$(
+  curl -GsS \
+    "http://localhost:${PROM_PORT}/api/v1/query" \
+    --data-urlencode \
+    'query=envforge_reliability:targets_up'
+)"
+
+printf '%s' "${RECORDED_TARGETS}" |
+python3 -c '
+import json
+import sys
+
+data = json.load(sys.stdin)
+results = data["data"]["result"]
+
+if not results:
+    raise SystemExit("Recording rule targets_up returned no result")
+
+value = float(results[0]["value"][1])
+
+if value < 2:
+    raise SystemExit(
+        f"Expected at least 2 recorded targets UP, got {value:g}"
+    )
+
+print(f"[OK] Recording rule reports {value:g} workload targets UP")
+'
+
+echo
 echo "=== Loki validation ==="
 
 LOKI_RESULT="$(
