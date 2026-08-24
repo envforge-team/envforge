@@ -7,7 +7,7 @@ This runbook validates failure handling for the local M1 provisioning flow.
 All tests must run against:
 
 ```text
-docker-desktop
+kind-envforge
 ```
 
 Verify:

@@ -10,9 +10,9 @@ namespace_manifest="deployment/kubernetes/m1-provisioning/namespace.yaml"
 
 current_context="$(kubectl config current-context)"
 
-if [[ "$current_context" != "docker-desktop" ]]; then
+if [[ "$current_context" != "kind-envforge" ]]; then
   echo "Refusing to continue."
-  echo "Expected Kubernetes context: docker-desktop"
+  echo "Expected Kubernetes context: kind-envforge"
   echo "Current Kubernetes context: ${current_context}"
   exit 1
 fi

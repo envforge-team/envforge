@@ -4,7 +4,7 @@ set -euo pipefail
 
 environment_namespace="${ENVFORGE_NAMESPACE:-env-static-demo-m1}"
 release_name="${ENVFORGE_RELEASE:-static-demo-m1}"
-expected_context="docker-desktop"
+expected_context="kind-envforge"
 
 current_context="$(kubectl config current-context)"
 
