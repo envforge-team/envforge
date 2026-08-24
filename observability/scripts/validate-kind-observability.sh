@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_CONTEXT="kind-envforge-local"
+EXPECTED_CONTEXT="${ENVFORGE_KUBE_CONTEXT:-kind-envforge}"
 APP_NAMESPACE="env-reliability-demo"
 MONITORING_NAMESPACE="monitoring"
 
