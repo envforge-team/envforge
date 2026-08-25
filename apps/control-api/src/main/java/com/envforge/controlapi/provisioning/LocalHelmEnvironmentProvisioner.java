@@ -2,6 +2,7 @@ package com.envforge.controlapi.provisioning;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,11 +37,26 @@ public class LocalHelmEnvironmentProvisioner
         this.chartPath = chartPath
             .toAbsolutePath()
             .normalize();
+
+        if (!Files.isDirectory(this.chartPath)) {
+            LOGGER.warn(
+                "Configured Helm chart path {} does not exist. Local "
+                    + "environment provisioning will fail until "
+                    + "envforge.provisioning.chart-path (or the "
+                    + "ENVFORGE_HELM_CHART_PATH env var) points at a "
+                    + "real envforge-workload chart directory. This is "
+                    + "expected when the app is started from a working "
+                    + "directory other than apps/control-api, e.g. a "
+                    + "packaged jar or a container.",
+                this.chartPath
+            );
+        }
     }
 
     @Override
     public void provision(EnvironmentEntity environment) {
         verifySupportedTemplate(environment.getTemplate());
+        verifyChartPathExists();
 
         createNamespaceIfMissing(environment.getNamespace());
         configureNamespace(environment);
@@ -178,6 +194,19 @@ public class LocalHelmEnvironmentProvisioner
             throw new IllegalArgumentException(
                 "Local provisioning currently supports "
                     + "only STATIC_WEB environments"
+            );
+        }
+    }
+
+    private void verifyChartPathExists() {
+        if (!Files.isDirectory(chartPath)) {
+            throw new IllegalStateException(
+                "Cannot provision environment: Helm chart path "
+                    + chartPath
+                    + " does not exist. Set "
+                    + "envforge.provisioning.chart-path (or the "
+                    + "ENVFORGE_HELM_CHART_PATH env var) to the "
+                    + "envforge-workload chart directory."
             );
         }
     }
