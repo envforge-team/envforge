@@ -25,6 +25,8 @@ import org.springframework.test.context.bean.override
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.envforge.controlapi.security.EntraSecurityConfig;
+import com.envforge.controlapi.security.AuthorizationService;
+import com.envforge.controlapi.security.CurrentUserProvider;
 
 @WebMvcTest(MonitoringController.class)
 @ActiveProfiles("entra")
@@ -39,6 +41,12 @@ class MonitoringSecurityTest {
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private CurrentUserProvider currentUserProvider;
+
+    @MockitoBean
+    private AuthorizationService authorizationService;
 
     @Test
     void metricsShouldRejectUnauthenticatedRequests()
