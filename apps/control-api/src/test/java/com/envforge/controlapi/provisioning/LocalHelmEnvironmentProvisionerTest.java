@@ -3,7 +3,6 @@ package com.envforge.controlapi.provisioning;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -25,12 +24,10 @@ class LocalHelmEnvironmentProvisionerTest {
 
     @Test
     void constructorDoesNotFailWhenChartPathIsMissing() {
-        Path missingPath = Path.of("does/not/exist/anywhere");
-
         assertThatCode(() ->
             new LocalHelmEnvironmentProvisioner(
                 "kind-envforge",
-                missingPath
+                "does/not/exist/anywhere"
             )
         ).doesNotThrowAnyException();
     }
@@ -40,7 +37,7 @@ class LocalHelmEnvironmentProvisionerTest {
         LocalHelmEnvironmentProvisioner provisioner =
             new LocalHelmEnvironmentProvisioner(
                 "kind-envforge",
-                Path.of("does/not/exist/anywhere")
+                "does/not/exist/anywhere"
             );
 
         EnvironmentEntity environment = environment();

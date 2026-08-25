@@ -31,10 +31,10 @@ public class LocalHelmEnvironmentProvisioner
         @Value("${envforge.provisioning.kube-context}")
         String kubeContext,
         @Value("${envforge.provisioning.chart-path}")
-        Path chartPath
+        String chartPath
     ) {
         this.kubeContext = kubeContext;
-        this.chartPath = chartPath
+        this.chartPath = Path.of(chartPath)
             .toAbsolutePath()
             .normalize();
 

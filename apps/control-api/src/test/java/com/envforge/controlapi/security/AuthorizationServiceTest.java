@@ -105,4 +105,69 @@ class AuthorizationServiceTest {
         );
         verify(securityMetrics).recordForbidden();
     }
+
+    @Test
+    void requireOwnerOrAdminAllowsAdminEvenWhenNotOwner() {
+        CurrentUser admin = new CurrentUser(
+            "admin-2",
+            "admin-2@envforge.dev",
+            "Admin Two",
+            Role.ADMIN
+        );
+
+        assertDoesNotThrow(() ->
+            authorizationService.requireOwnerOrAdmin(
+                admin,
+                "UPDATE_ENVIRONMENT",
+                "owner@envforge.dev"
+            )
+        );
+    }
+
+    @Test
+    void requireOwnerOrAdminDeniesOwnerWithInsufficientRole() {
+        CurrentUser ownerButPlainUser = new CurrentUser(
+            "user-1",
+            "owner@envforge.dev",
+            "Owner As Plain User",
+            Role.USER
+        );
+
+        assertThrows(
+            AccessDeniedException.class,
+            () -> authorizationService.requireOwnerOrAdmin(
+                ownerButPlainUser,
+                "UPDATE_ENVIRONMENT",
+                "owner@envforge.dev"
+            )
+        );
+        verify(securityMetrics).recordForbidden();
+    }
+
+    @Test
+    void requireAdminAllowsAdminAndDeniesEveryoneElse() {
+        CurrentUser admin = new CurrentUser(
+            "admin-3",
+            "admin-3@envforge.dev",
+            "Admin Three",
+            Role.ADMIN
+        );
+        CurrentUser operator = new CurrentUser(
+            "operator-3",
+            "operator-3@envforge.dev",
+            "Operator Three",
+            Role.OPERATOR
+        );
+
+        assertDoesNotThrow(() ->
+            authorizationService.requireAdmin(admin, "UPDATE_USER_ROLE")
+        );
+        assertThrows(
+            AccessDeniedException.class,
+            () -> authorizationService.requireAdmin(
+                operator,
+                "UPDATE_USER_ROLE"
+            )
+        );
+    }
 }
