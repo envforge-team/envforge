@@ -21,6 +21,7 @@ spec:
         envforge.io/environment: reliability-demo
         envforge.io/component: monitoring
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -43,6 +44,7 @@ spec:
 
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 10001
             runAsGroup: 10001

@@ -1,21 +1,32 @@
 package com.envforge.reliabilitydemo;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 public class IncidentController {
 
+    private static final String INCIDENT_KEY_HEADER =
+        "X-EnvForge-Incident-Key";
+
     private static final long MAX_LATENCY_MS = 5_000;
     private static final long MAX_CPU_LOAD_MS = 10_000;
+
+    @Value("${envforge.incident.admin-key:}")
+    private String incidentAdminKey;
 
     private final AtomicBoolean failureEnabled =
         new AtomicBoolean(false);
@@ -55,8 +66,15 @@ public class IncidentController {
 
     @PostMapping("/admin/incidents/failure")
     public ResponseEntity<Map<String, Object>> setFailure(
+        @RequestHeader(
+            value = INCIDENT_KEY_HEADER,
+            required = false
+        )
+        String providedKey,
         @RequestParam boolean enabled
     ) {
+        requireIncidentAccess(providedKey);
+
         failureEnabled.set(enabled);
 
         return ResponseEntity.ok(
@@ -69,8 +87,15 @@ public class IncidentController {
 
     @PostMapping("/admin/incidents/latency")
     public ResponseEntity<Map<String, Object>> setLatency(
+        @RequestHeader(
+            value = INCIDENT_KEY_HEADER,
+            required = false
+        )
+        String providedKey,
         @RequestParam long milliseconds
     ) {
+        requireIncidentAccess(providedKey);
+
         if (
             milliseconds < 0 ||
             milliseconds > MAX_LATENCY_MS
@@ -98,8 +123,15 @@ public class IncidentController {
 
     @PostMapping("/admin/incidents/cpu")
     public ResponseEntity<Map<String, Object>> generateCpuLoad(
+        @RequestHeader(
+            value = INCIDENT_KEY_HEADER,
+            required = false
+        )
+        String providedKey,
         @RequestParam long milliseconds
     ) {
+        requireIncidentAccess(providedKey);
+
         if (
             milliseconds < 1 ||
             milliseconds > MAX_CPU_LOAD_MS
@@ -136,7 +168,15 @@ public class IncidentController {
     }
 
     @PostMapping("/admin/incidents/reset")
-    public ResponseEntity<Map<String, Object>> reset() {
+    public ResponseEntity<Map<String, Object>> reset(
+        @RequestHeader(
+            value = INCIDENT_KEY_HEADER,
+            required = false
+        )
+        String providedKey
+    ) {
+        requireIncidentAccess(providedKey);
+
         failureEnabled.set(false);
         latencyMillis.set(0);
 
@@ -149,7 +189,15 @@ public class IncidentController {
     }
 
     @GetMapping("/admin/incidents/status")
-    public ResponseEntity<Map<String, Object>> status() {
+    public ResponseEntity<Map<String, Object>> status(
+        @RequestHeader(
+            value = INCIDENT_KEY_HEADER,
+            required = false
+        )
+        String providedKey
+    ) {
+        requireIncidentAccess(providedKey);
+
         return ResponseEntity.ok(
             Map.of(
                 "failureEnabled",
@@ -157,6 +205,30 @@ public class IncidentController {
                 "latencyMillis",
                 latencyMillis.get()
             )
+        );
+    }
+
+    private void requireIncidentAccess(String providedKey) {
+        if (
+            incidentAdminKey == null ||
+            incidentAdminKey.isBlank() ||
+            providedKey == null ||
+            !keysMatch(incidentAdminKey, providedKey)
+        ) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Incident administration is restricted"
+            );
+        }
+    }
+
+    private boolean keysMatch(
+        String expected,
+        String provided
+    ) {
+        return MessageDigest.isEqual(
+            expected.getBytes(StandardCharsets.UTF_8),
+            provided.getBytes(StandardCharsets.UTF_8)
         );
     }
 }

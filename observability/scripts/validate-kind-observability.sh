@@ -8,15 +8,18 @@ MONITORING_NAMESPACE="monitoring"
 PROM_PORT=19092
 LOKI_PORT=13100
 GRAFANA_PORT=13001
+APP_PORT=18080
 
 PROM_PF=""
 LOKI_PF=""
 GRAFANA_PF=""
+APP_PF=""
 
 cleanup() {
   [ -n "${PROM_PF}" ] && kill "${PROM_PF}" 2>/dev/null || true
   [ -n "${LOKI_PF}" ] && kill "${LOKI_PF}" 2>/dev/null || true
   [ -n "${GRAFANA_PF}" ] && kill "${GRAFANA_PF}" 2>/dev/null || true
+  [ -n "${APP_PF}" ] && kill "${APP_PF}" 2>/dev/null || true
 }
 
 trap cleanup EXIT
@@ -73,6 +76,46 @@ kubectl wait \
 
 ok "Reliability Demo API is available"
 ok "Traffic generator is available"
+
+echo
+echo "=== Reliability security validation ==="
+
+TRAFFIC_SERVICE="$(
+  kubectl get service \
+    --namespace "${APP_NAMESPACE}" \
+    --selector app=traffic-generator \
+    --output name
+)"
+
+if [ -n "${TRAFFIC_SERVICE}" ]; then
+  fail "Traffic generator must not be exposed by a Kubernetes Service"
+fi
+
+ok "Traffic generator has no Kubernetes Service"
+
+AUTOMOUNT_TOKEN="$(
+  kubectl get deployment traffic-generator \
+    --namespace "${APP_NAMESPACE}" \
+    -o jsonpath='{.spec.template.spec.automountServiceAccountToken}'
+)"
+
+if [ "${AUTOMOUNT_TOKEN}" != "false" ]; then
+  fail "Traffic generator must disable ServiceAccount token automount"
+fi
+
+ok "Traffic generator ServiceAccount token automount is disabled"
+
+READ_ONLY_ROOT="$(
+  kubectl get deployment traffic-generator \
+    --namespace "${APP_NAMESPACE}" \
+    -o jsonpath='{.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem}'
+)"
+
+if [ "${READ_ONLY_ROOT}" != "true" ]; then
+  fail "Traffic generator root filesystem must be read-only"
+fi
+
+ok "Traffic generator root filesystem is read-only"
 
 kubectl get servicemonitor reliability-demo-api \
   --namespace "${APP_NAMESPACE}" \
@@ -147,6 +190,33 @@ wait_http \
 wait_http \
   "http://localhost:${GRAFANA_PORT}/api/health" \
   "Grafana"
+
+kubectl \
+  --namespace "${APP_NAMESPACE}" \
+  port-forward \
+  svc/reliability-demo-api \
+  "${APP_PORT}:80" \
+  >/tmp/envforge-reliability-port-forward.log 2>&1 &
+
+APP_PF=$!
+
+wait_http \
+  "http://localhost:${APP_PORT}/health" \
+  "Reliability Demo API"
+
+INCIDENT_STATUS="$(
+  curl -sS \
+    -o /dev/null \
+    -w '%{http_code}' \
+    -X POST \
+    "http://localhost:${APP_PORT}/admin/incidents/failure?enabled=true"
+)"
+
+if [ "${INCIDENT_STATUS}" != "403" ]; then
+  fail "Unauthenticated incident control expected HTTP 403, got ${INCIDENT_STATUS}"
+fi
+
+ok "Incident administration rejects requests without the incident key"
 
 echo
 echo "=== Prometheus validation ==="
