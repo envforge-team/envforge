@@ -1,11 +1,13 @@
 package com.envforge.cleanupworker.service;
 
+import static org.mockito.ArgumentMatchers.eq;
 import com.envforge.cleanupworker.config.LifecycleProperties;
 import com.envforge.cleanupworker.domain.LifecycleAction;
 import com.envforge.cleanupworker.domain.LifecycleJobStatus;
 import com.envforge.cleanupworker.environment.EnvironmentEntity;
 import com.envforge.cleanupworker.environment.EnvironmentRepository;
 import com.envforge.cleanupworker.environment.EnvironmentStatus;
+import com.envforge.cleanupworker.metrics.LifecycleMetrics;
 import com.envforge.cleanupworker.persistence.entity.LifecycleJobEntity;
 import com.envforge.cleanupworker.persistence.repository.LifecycleAuditRepository;
 import com.envforge.cleanupworker.persistence.repository.LifecycleJobRepository;
@@ -14,18 +16,22 @@ import com.envforge.cleanupworker.runner.LifecycleCommandRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class LifecycleJobProcessorTest {
 
     private LifecycleCommandRunner commandRunner;
     private EnvironmentRepository environmentRepository;
+    private LifecycleMetrics lifecycleMetrics;
     private LifecycleJobProcessor processor;
 
     @BeforeEach
@@ -36,6 +42,7 @@ class LifecycleJobProcessorTest {
                 mock(LifecycleAuditRepository.class);
         commandRunner = mock(LifecycleCommandRunner.class);
         environmentRepository = mock(EnvironmentRepository.class);
+        lifecycleMetrics = mock(LifecycleMetrics.class);
 
         LifecycleAuditService auditService =
                 new LifecycleAuditService(auditRepository);
@@ -48,36 +55,53 @@ class LifecycleJobProcessorTest {
                 auditService,
                 commandRunner,
                 properties,
-                environmentRepository
+                environmentRepository,
+                lifecycleMetrics
         );
     }
 
     @Test
-    void shouldMarkDeleteJobAndEnvironmentSucceeded() {
+    void shouldDeleteManagedEnvironmentAndNamespace() {
         LifecycleJobEntity job = createDeleteJob();
-        EnvironmentEntity environment = createEnvironment(job.getEnvironmentId());
+        EnvironmentEntity environment =
+                createEnvironment(job.getEnvironmentId());
 
         when(environmentRepository.findByIdForUpdate(job.getEnvironmentId()))
                 .thenReturn(Optional.of(environment));
+        when(commandRunner.verifyManagedNamespace("namespace"))
+                .thenReturn(CommandResult.success("managed"));
         when(commandRunner.uninstall("release", "namespace"))
                 .thenReturn(CommandResult.success("uninstalled"));
         when(commandRunner.verifyCleanup("release", "namespace"))
-                .thenReturn(CommandResult.success("verified"));
+                .thenReturn(CommandResult.success("release gone"));
+        when(commandRunner.deleteNamespace("namespace"))
+                .thenReturn(CommandResult.success("namespace deleting"));
+        when(commandRunner.verifyNamespaceDeleted("namespace"))
+                .thenReturn(CommandResult.success("namespace gone"));
 
         processor.process(job);
 
         assertEquals(LifecycleJobStatus.SUCCEEDED, job.getStatus());
         assertEquals(EnvironmentStatus.DELETED, environment.getStatus());
         assertEquals(1, job.getAttemptCount());
+
+        verify(lifecycleMetrics).record(
+        eq(LifecycleAction.DELETE),
+        eq("succeeded"),
+        any(Duration.class)
+);
     }
 
     @Test
-    void shouldScheduleRetryAfterTemporaryFailure() {
+    void shouldRetryWhenHelmUninstallFails() {
         LifecycleJobEntity job = createDeleteJob();
-        EnvironmentEntity environment = createEnvironment(job.getEnvironmentId());
+        EnvironmentEntity environment =
+                createEnvironment(job.getEnvironmentId());
 
         when(environmentRepository.findByIdForUpdate(job.getEnvironmentId()))
                 .thenReturn(Optional.of(environment));
+        when(commandRunner.verifyManagedNamespace("namespace"))
+                .thenReturn(CommandResult.success("managed"));
         when(commandRunner.uninstall("release", "namespace"))
                 .thenReturn(CommandResult.failure(1, "temporary failure"));
 
@@ -86,6 +110,12 @@ class LifecycleJobProcessorTest {
         assertEquals(LifecycleJobStatus.RETRYING, job.getStatus());
         assertEquals(EnvironmentStatus.DELETING, environment.getStatus());
         assertEquals(1, job.getAttemptCount());
+
+        verify(lifecycleMetrics).record(
+        eq(LifecycleAction.DELETE),
+        eq("retrying"),
+        any(Duration.class)
+);
     }
 
     private LifecycleJobEntity createDeleteJob() {

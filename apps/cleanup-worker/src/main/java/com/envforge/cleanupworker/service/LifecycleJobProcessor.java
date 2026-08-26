@@ -5,6 +5,7 @@ import com.envforge.cleanupworker.domain.AuditResult;
 import com.envforge.cleanupworker.domain.LifecycleAction;
 import com.envforge.cleanupworker.environment.EnvironmentEntity;
 import com.envforge.cleanupworker.environment.EnvironmentRepository;
+import com.envforge.cleanupworker.metrics.LifecycleMetrics;
 import com.envforge.cleanupworker.persistence.entity.LifecycleJobEntity;
 import com.envforge.cleanupworker.persistence.repository.LifecycleJobRepository;
 import com.envforge.cleanupworker.runner.CommandResult;
@@ -12,6 +13,7 @@ import com.envforge.cleanupworker.runner.LifecycleCommandRunner;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 
 @Service
@@ -22,23 +24,28 @@ public class LifecycleJobProcessor {
     private final LifecycleCommandRunner commandRunner;
     private final LifecycleProperties properties;
     private final EnvironmentRepository environmentRepository;
+    private final LifecycleMetrics lifecycleMetrics;
 
     public LifecycleJobProcessor(
             LifecycleJobRepository jobRepository,
             LifecycleAuditService auditService,
             LifecycleCommandRunner commandRunner,
             LifecycleProperties properties,
-            EnvironmentRepository environmentRepository
+            EnvironmentRepository environmentRepository,
+            LifecycleMetrics lifecycleMetrics
     ) {
         this.jobRepository = jobRepository;
         this.auditService = auditService;
         this.commandRunner = commandRunner;
         this.properties = properties;
         this.environmentRepository = environmentRepository;
+        this.lifecycleMetrics = lifecycleMetrics;
     }
 
     @Transactional
     public void process(LifecycleJobEntity job) {
+        Instant processingStartedAt = Instant.now();
+
         EnvironmentEntity environment =
                 environmentRepository.findByIdForUpdate(job.getEnvironmentId())
                         .orElseThrow(
@@ -55,14 +62,23 @@ public class LifecycleJobProcessor {
 
         job.markRunning(Instant.now());
         jobRepository.save(job);
-        auditService.record(job, AuditResult.RUNNING, "Job processing started");
+        auditService.record(
+                job,
+                AuditResult.RUNNING,
+                "Job processing started"
+        );
 
         CommandResult result;
 
         try {
             result = execute(job);
         } catch (RuntimeException exception) {
-            handleFailure(job, environment, exception.getMessage());
+            handleFailure(
+                    job,
+                    environment,
+                    exception.getMessage(),
+                    processingStartedAt
+            );
             return;
         }
 
@@ -77,14 +93,33 @@ public class LifecycleJobProcessor {
             }
 
             environmentRepository.save(environment);
-            auditService.record(job, AuditResult.SUCCEEDED, result.output());
+            auditService.record(
+                    job,
+                    AuditResult.SUCCEEDED,
+                    result.output()
+            );
+
+            lifecycleMetrics.record(
+                    job.getAction(),
+                    "succeeded",
+                    Duration.between(
+                            processingStartedAt,
+                            Instant.now()
+                    )
+            );
         } else {
-            handleFailure(job, environment, result.error());
+            handleFailure(
+                    job,
+                    environment,
+                    result.error(),
+                    processingStartedAt
+            );
         }
     }
 
     private CommandResult execute(LifecycleJobEntity job) {
-        if (job.getHelmReleaseName() == null || job.getNamespaceName() == null) {
+        if (job.getHelmReleaseName() == null
+                || job.getNamespaceName() == null) {
             return CommandResult.failure(
                     2,
                     "namespaceName and helmReleaseName are required"
@@ -102,6 +137,15 @@ public class LifecycleJobProcessor {
     }
 
     private CommandResult executeDelete(LifecycleJobEntity job) {
+        CommandResult managedNamespace =
+                commandRunner.verifyManagedNamespace(
+                        job.getNamespaceName()
+                );
+
+        if (!managedNamespace.successful()) {
+            return managedNamespace;
+        }
+
         CommandResult uninstall = commandRunner.uninstall(
                 job.getHelmReleaseName(),
                 job.getNamespaceName()
@@ -111,8 +155,26 @@ public class LifecycleJobProcessor {
             return uninstall;
         }
 
-        return commandRunner.verifyCleanup(
-                job.getHelmReleaseName(),
+        CommandResult releaseCleanup =
+                commandRunner.verifyCleanup(
+                        job.getHelmReleaseName(),
+                        job.getNamespaceName()
+                );
+
+        if (!releaseCleanup.successful()) {
+            return releaseCleanup;
+        }
+
+        CommandResult deleteNamespace =
+                commandRunner.deleteNamespace(
+                        job.getNamespaceName()
+                );
+
+        if (!deleteNamespace.successful()) {
+            return deleteNamespace;
+        }
+
+        return commandRunner.verifyNamespaceDeleted(
                 job.getNamespaceName()
         );
     }
@@ -144,15 +206,24 @@ public class LifecycleJobProcessor {
     private void handleFailure(
             LifecycleJobEntity job,
             EnvironmentEntity environment,
-            String error
+            String error,
+            Instant processingStartedAt
     ) {
         Instant now = Instant.now();
 
         if (job.getAttemptCount() < properties.maxRetries()) {
-            Instant retryAt = now.plusSeconds(properties.retryDelaySeconds());
+            Instant retryAt =
+                    now.plusSeconds(properties.retryDelaySeconds());
+
             job.markRetrying(now, retryAt, error);
             jobRepository.save(job);
             auditService.record(job, AuditResult.RETRYING, error);
+
+            lifecycleMetrics.record(
+                    job.getAction(),
+                    "retrying",
+                    Duration.between(processingStartedAt, now)
+            );
             return;
         }
 
@@ -161,6 +232,12 @@ public class LifecycleJobProcessor {
         environment.markFailed(now);
         environmentRepository.save(environment);
         auditService.record(job, AuditResult.FAILED, error);
+
+        lifecycleMetrics.record(
+                job.getAction(),
+                "failed",
+                Duration.between(processingStartedAt, now)
+        );
     }
 
     private boolean isDeleteAction(LifecycleAction action) {

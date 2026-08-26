@@ -1,14 +1,35 @@
 package com.envforge.cleanupworker.runner;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-public class DryRunLifecycleCommandRunner implements LifecycleCommandRunner {
+@ConditionalOnProperty(
+        prefix = "envforge.lifecycle.runner",
+        name = "mode",
+        havingValue = "dry-run",
+        matchIfMissing = true
+)
+public class DryRunLifecycleCommandRunner
+        implements LifecycleCommandRunner {
 
     @Override
-    public CommandResult uninstall(String releaseName, String namespaceName) {
+    public CommandResult verifyManagedNamespace(String namespaceName) {
         return CommandResult.success(
-                "DRY RUN: helm uninstall " + releaseName + " --namespace " + namespaceName
+                "DRY RUN: managed namespace verified: " + namespaceName
+        );
+    }
+
+    @Override
+    public CommandResult uninstall(
+            String releaseName,
+            String namespaceName
+    ) {
+        return CommandResult.success(
+                "DRY RUN: helm uninstall "
+                        + releaseName
+                        + " --namespace "
+                        + namespaceName
         );
     }
 
@@ -29,9 +50,12 @@ public class DryRunLifecycleCommandRunner implements LifecycleCommandRunner {
     }
 
     @Override
-    public CommandResult verifyCleanup(String releaseName, String namespaceName) {
+    public CommandResult verifyCleanup(
+            String releaseName,
+            String namespaceName
+    ) {
         return CommandResult.success(
-                "DRY RUN: cleanup verification for "
+                "DRY RUN: release cleanup verified for "
                         + releaseName
                         + " in "
                         + namespaceName
@@ -39,12 +63,29 @@ public class DryRunLifecycleCommandRunner implements LifecycleCommandRunner {
     }
 
     @Override
-    public CommandResult verifyRollback(String releaseName, String namespaceName) {
+    public CommandResult verifyRollback(
+            String releaseName,
+            String namespaceName
+    ) {
         return CommandResult.success(
-                "DRY RUN: rollback verification for "
+                "DRY RUN: rollback verified for "
                         + releaseName
                         + " in "
                         + namespaceName
+        );
+    }
+
+    @Override
+    public CommandResult deleteNamespace(String namespaceName) {
+        return CommandResult.success(
+                "DRY RUN: kubectl delete namespace " + namespaceName
+        );
+    }
+
+    @Override
+    public CommandResult verifyNamespaceDeleted(String namespaceName) {
+        return CommandResult.success(
+                "DRY RUN: namespace deletion verified: " + namespaceName
         );
     }
 }

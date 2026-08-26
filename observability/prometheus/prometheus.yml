@@ -20,3 +20,13 @@ scrape_configs:
         labels:
           service: control-api
           environment: local
+
+  - job_name: envforge-cleanup-worker
+    scrape_interval: 5s
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - wsl-host:8081
+        labels:
+          service: cleanup-worker
+          environment: local
