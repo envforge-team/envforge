@@ -236,6 +236,7 @@ function App() {
     setIsSubmitting(true)
     setSubmitError(null)
     setStatusRefreshError(null)
+    setRetryError(null)
     setCreatedEnvironment(null)
 
     try {
@@ -288,6 +289,9 @@ function App() {
   const isProvisioning =
     createdEnvironment !== null &&
     isProvisioningStatus(createdEnvironment.status)
+
+  const isImageVersionValid =
+    /^\d+\.\d+\.\d+$/.test(form.imageVersion)
 
   return (
     <div className="app">
@@ -417,8 +421,23 @@ function App() {
                 })
               }
               placeholder="0.2.0"
+              pattern="[0-9]+[.][0-9]+[.][0-9]+"
+              maxLength={100}
+              aria-invalid={!isImageVersionValid}
               required
             />
+
+            <small>
+              Use semantic versioning, for example 1.4.2.
+            </small>
+
+            {form.imageVersion.length > 0 &&
+              !isImageVersionValid && (
+                <small className="field-error">
+                  Image version must follow semantic
+                  versioning, for example 1.4.2.
+                </small>
+              )}
           </div>
 
           <div className="field">
@@ -529,6 +548,7 @@ function App() {
                 setCreatedEnvironment(null)
                 setSubmitError(null)
                 setStatusRefreshError(null)
+                setRetryError(null)
               }}
             >
               Reset
@@ -540,7 +560,8 @@ function App() {
               disabled={
                 isSubmitting ||
                 templatesLoading ||
-                templates.length === 0
+                templates.length === 0 ||
+                !isImageVersionValid
               }
             >
               {isSubmitting

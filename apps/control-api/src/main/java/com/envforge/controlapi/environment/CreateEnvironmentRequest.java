@@ -25,6 +25,10 @@ public record CreateEnvironmentRequest(
     EnvironmentTemplate template,
 
     @NotBlank(message = "Image version is required")
+    @Pattern(
+    regexp = "^\\d+\\.\\d+\\.\\d+$",
+    message = "Image version must follow semantic versioning (e.g. 1.4.2)"
+    )
     @Size(
         max = 100,
         message = "Image version cannot exceed 100 characters"
