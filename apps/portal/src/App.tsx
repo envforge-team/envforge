@@ -7,6 +7,7 @@ import {
   EnvironmentApiError,
   getEnvironment,
   getTemplates,
+  retryEnvironment,
 } from './features/environments/environmentApi'
 
 import type {
@@ -64,6 +65,12 @@ function App() {
     useState<string | null>(null)
 
   const [statusRefreshError, setStatusRefreshError] =
+    useState<string | null>(null)
+
+  const [isRetrying, setIsRetrying] =
+    useState(false)
+
+  const [retryError, setRetryError] =
     useState<string | null>(null)
 
   useEffect(() => {
@@ -244,6 +251,37 @@ function App() {
       }
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleRetryProvisioning() {
+    if (
+      createdEnvironment === null ||
+      createdEnvironment.status !== 'FAILED'
+    ) {
+      return
+    }
+
+    setIsRetrying(true)
+    setRetryError(null)
+    setStatusRefreshError(null)
+
+    try {
+      const environment = await retryEnvironment(
+        createdEnvironment.id,
+      )
+
+      setCreatedEnvironment(environment)
+    } catch (error) {
+      if (error instanceof EnvironmentApiError) {
+        setRetryError(error.message)
+      } else {
+        setRetryError(
+          'The Control API is unavailable. Please try again.',
+        )
+      }
+    } finally {
+      setIsRetrying(false)
     }
   }
 
@@ -570,6 +608,31 @@ function App() {
                 >
                   {statusRefreshError}
                 </p>
+              )}
+              {createdEnvironment.status === 'FAILED' && (
+                <div className="retry-provisioning">
+                  <button
+                    type="button"
+                    className="primary-button retry-button"
+                    disabled={isRetrying}
+                    onClick={() => {
+                      void handleRetryProvisioning()
+                    }}
+                  >
+                    {isRetrying
+                      ? 'Retrying provisioning...'
+                      : 'Retry provisioning'}
+                  </button>
+
+                  {retryError && (
+                    <p
+                      className="retry-error"
+                      role="alert"
+                    >
+                      {retryError}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 

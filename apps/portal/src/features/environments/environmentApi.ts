@@ -57,6 +57,27 @@ export async function getEnvironment(
   return (await response.json()) as EnvironmentResponse
 }
 
+export async function retryEnvironment(
+  environmentId: string,
+): Promise<EnvironmentResponse> {
+  const response = await fetch(
+    `/api/environments/${encodeURIComponent(environmentId)}/retry`,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+      },
+    },
+  )
+
+  if (!response.ok) {
+    const error = (await response.json()) as ApiError
+    throw new EnvironmentApiError(error)
+  }
+
+  return (await response.json()) as EnvironmentResponse
+}
+
 export async function getTemplates(
   signal?: AbortSignal,
 ): Promise<TemplateResponse[]> {

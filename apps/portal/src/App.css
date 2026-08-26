@@ -313,6 +313,22 @@ select {
   font-weight: 600;
 }
 
+.retry-provisioning {
+  margin-top: 16px;
+}
+
+.retry-button {
+  min-height: 42px;
+  padding: 10px 16px;
+}
+
+.retry-error {
+  margin: 10px 0 0;
+  color: #8a1c1c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 @keyframes provisioning-spin {
   to {
     transform: rotate(360deg);
