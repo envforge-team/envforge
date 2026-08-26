@@ -17,6 +17,7 @@ import type {
 } from './features/environments/environmentTypes'
 
 import { EnvironmentDeploymentsPage } from './features/deployments/EnvironmentDeploymentsPage'
+import { EnvironmentRuntimeCard } from './features/environments/EnvironmentRuntimeCard'
 
 const initialForm: CreateEnvironmentRequest = {
   name: '',
@@ -605,6 +606,13 @@ function App() {
             </dl>
           </section>
         )}
+
+        {createdEnvironment?.status === 'READY' && (
+          <EnvironmentRuntimeCard
+            environmentId={createdEnvironment.id}
+          />
+        )}
+
 
         {createdEnvironment?.status ===
           'READY' && (
