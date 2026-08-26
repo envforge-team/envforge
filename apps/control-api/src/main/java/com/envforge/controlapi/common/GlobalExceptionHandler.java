@@ -16,7 +16,8 @@ import org.springframework.web.bind
     .MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
+import com.envforge.controlapi.provisioning
+    .EnvironmentRetryNotAllowedException;
 
 import com.envforge.controlapi.deployment.ConcurrentRolloutException;
 import com.envforge.controlapi.deployment.DeploymentNotFoundException;
@@ -113,6 +114,22 @@ public ResponseEntity<ApiError> handleConcurrentRollout(
             Map.of()
         );
     }
+
+    @ExceptionHandler(
+        EnvironmentRetryNotAllowedException.class
+    )
+    public ResponseEntity<ApiError> handleRetryNotAllowed(
+        EnvironmentRetryNotAllowedException exception,
+        HttpServletRequest request
+    ) {
+        return buildResponse(
+            HttpStatus.CONFLICT,
+            exception.getMessage(),
+            request.getRequestURI(),
+            Map.of()
+        );
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(
         MethodArgumentNotValidException exception,
