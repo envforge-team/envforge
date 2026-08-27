@@ -47,15 +47,26 @@ spec:
                   key: db-password
           resources:
             {{- toYaml .Values.controlApi.resources | nindent 12 }}
+                    startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 30
+
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: http
-            initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: http
-            initialDelaySeconds: 20
             periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3

@@ -1,0 +1,57 @@
+name: Update Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Control API image tag"
+        required: true
+        type: string
+
+jobs:
+  update-environment:
+    name: Update Control API
+    runs-on: ubuntu-latest
+
+    env:
+      RELEASE_NAME: envforge-platform
+      NAMESPACE: envforge-platform
+      CHART_PATH: deployment/helm/envforge-platform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Helm lint
+        run: |
+          helm lint \
+            "${CHART_PATH}" \
+            --namespace "${NAMESPACE}"
+
+      - name: Render updated release
+        run: |
+          helm template \
+            "${RELEASE_NAME}" \
+            "${CHART_PATH}" \
+            --namespace "${NAMESPACE}" \
+            --set-string "controlApi.image.repository=envforge/control-api" \
+            --set-string "controlApi.image.tag=${{ inputs.image_tag }}" \
+            > /tmp/envforge-platform-rendered.yaml
+
+      - name: Validate rendered manifests
+        run: |
+          kubectl apply \
+            --dry-run=client \
+            --filename /tmp/envforge-platform-rendered.yaml
+
+      - name: Show deployment image
+        run: |
+          grep -A3 "name: control-api" \
+            /tmp/envforge-platform-rendered.yaml || true
+
