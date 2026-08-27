@@ -143,22 +143,69 @@ kubectl get service "${PROM_SERVICE}" \
 
 ok "Prometheus Service exists"
 
-kubectl get secret "${INCIDENT_SECRET}" \
-  --namespace "${APP_NAMESPACE}" \
-  >/dev/null
+echo
+echo "=== Preparing incident administration access ==="
 
-INCIDENT_KEY="$(
-  kubectl get secret "${INCIDENT_SECRET}" \
+if ! kubectl get secret "${INCIDENT_SECRET}" \
+  --namespace "${APP_NAMESPACE}" \
+  >/dev/null 2>&1; then
+
+  INCIDENT_KEY="$(
+    python3 -c \
+      'import secrets; print(secrets.token_hex(32))'
+  )"
+
+  kubectl create secret generic "${INCIDENT_SECRET}" \
     --namespace "${APP_NAMESPACE}" \
-    -o jsonpath="{.data.${INCIDENT_SECRET_KEY}}" |
-    base64 --decode
-)"
+    --from-literal="${INCIDENT_SECRET_KEY}=${INCIDENT_KEY}" \
+    >/dev/null
+
+  ok "Runtime-only incident administration secret created"
+else
+  INCIDENT_KEY="$(
+    kubectl get secret "${INCIDENT_SECRET}" \
+      --namespace "${APP_NAMESPACE}" \
+      -o jsonpath="{.data.${INCIDENT_SECRET_KEY}}" |
+      base64 --decode
+  )"
+
+  ok "Existing runtime incident administration secret reused"
+fi
 
 if [ -z "${INCIDENT_KEY}" ]; then
   fail "Incident administration secret is empty"
 fi
 
-ok "Incident administration secret is available"
+CURRENT_INCIDENT_SECRET="$(
+  kubectl get deployment reliability-demo-api \
+    --namespace "${APP_NAMESPACE}" \
+    -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="ENVFORGE_INCIDENT_ADMIN_KEY")].valueFrom.secretKeyRef.name}'
+)"
+
+CURRENT_INCIDENT_SECRET_KEY="$(
+  kubectl get deployment reliability-demo-api \
+    --namespace "${APP_NAMESPACE}" \
+    -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="ENVFORGE_INCIDENT_ADMIN_KEY")].valueFrom.secretKeyRef.key}'
+)"
+
+if [ "${CURRENT_INCIDENT_SECRET}" != "${INCIDENT_SECRET}" ] ||
+   [ "${CURRENT_INCIDENT_SECRET_KEY}" != "${INCIDENT_SECRET_KEY}" ]; then
+
+  kubectl set env \
+    deployment/reliability-demo-api \
+    --namespace "${APP_NAMESPACE}" \
+    --from="secret/${INCIDENT_SECRET}" \
+    >/dev/null
+
+  kubectl rollout status \
+    deployment/reliability-demo-api \
+    --namespace "${APP_NAMESPACE}" \
+    --timeout=180s
+
+  ok "Incident administration secret injected into deployment"
+else
+  ok "Deployment already uses incident administration secret"
+fi
 
 APP_POD="$(
   kubectl get pods \
