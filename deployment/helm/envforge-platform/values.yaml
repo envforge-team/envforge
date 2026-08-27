@@ -21,8 +21,9 @@ controlApi:
   env:
     dbUrl: "jdbc:postgresql://postgres:5432/envforge"
     dbUsername: "envforge"
-    # TODO (Săptămâna 7): move to a Kubernetes Secret / Azure Key Vault
-    # instead of a plain value.
+    # Sourced into a Kubernetes Secret (control-api-secret.yaml) instead of
+    # a plain env var (Ziua 33). TODO: move this value itself out of
+    # values.yaml into Azure Key Vault for non-local environments.
     dbPassword: "envforge-local-password"
 
 portal:

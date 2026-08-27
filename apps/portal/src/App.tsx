@@ -5,16 +5,20 @@ import './App.css'
 import {
   createEnvironment,
   EnvironmentApiError,
+  getEnvironment,
   getTemplates,
+  retryEnvironment,
 } from './features/environments/environmentApi'
 
 import type {
   CreateEnvironmentRequest,
   EnvironmentResponse,
+  EnvironmentStatus,
   TemplateResponse,
 } from './features/environments/environmentTypes'
 
 import { EnvironmentDeploymentsPage } from './features/deployments/EnvironmentDeploymentsPage'
+import { EnvironmentRuntimeCard } from './features/environments/EnvironmentRuntimeCard'
 
 const initialForm: CreateEnvironmentRequest = {
   name: '',
@@ -26,15 +30,27 @@ const initialForm: CreateEnvironmentRequest = {
   monitoringEnabled: true,
 }
 
+const provisioningStatuses = new Set<EnvironmentStatus>([
+  'REQUESTED',
+  'PROVISIONING',
+  'DEPLOYING',
+])
+
+function isProvisioningStatus(
+  status: EnvironmentStatus,
+): boolean {
+  return provisioningStatuses.has(status)
+}
+
 function App() {
   const [form, setForm] =
     useState<CreateEnvironmentRequest>(initialForm)
 
   const [createdEnvironment, setCreatedEnvironment] =
-  useState<EnvironmentResponse | null>(null)
+    useState<EnvironmentResponse | null>(null)
 
   const [templates, setTemplates] =
-  useState<TemplateResponse[]>([])
+    useState<TemplateResponse[]>([])
 
   const [templatesLoading, setTemplatesLoading] =
     useState(true)
@@ -42,10 +58,22 @@ function App() {
   const [templatesError, setTemplatesError] =
     useState<string | null>(null)
 
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] =
+    useState(false)
 
-    useEffect(() => {
+  const [submitError, setSubmitError] =
+    useState<string | null>(null)
+
+  const [statusRefreshError, setStatusRefreshError] =
+    useState<string | null>(null)
+
+  const [isRetrying, setIsRetrying] =
+    useState(false)
+
+  const [retryError, setRetryError] =
+    useState<string | null>(null)
+
+  useEffect(() => {
     const controller = new AbortController()
 
     async function loadTemplates() {
@@ -102,53 +130,168 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const environmentId = createdEnvironment?.id
+    const environmentStatus =
+      createdEnvironment?.status
+
+    if (
+      !environmentId ||
+      !environmentStatus ||
+      !isProvisioningStatus(environmentStatus)
+    ) {
+      return
+    }
+
+    const environmentIdToPoll: string = environmentId
+    const controller = new AbortController()
+    let timeoutId: number | undefined
+
+    async function refreshEnvironmentStatus() {
+      try {
+        const environment = await getEnvironment(
+          environmentIdToPoll,
+          controller.signal,
+        )
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        setCreatedEnvironment(environment)
+        setStatusRefreshError(null)
+
+        if (isProvisioningStatus(environment.status)) {
+          timeoutId = window.setTimeout(
+            refreshEnvironmentStatus,
+            2000,
+          )
+        }
+      } catch (error) {
+        if (
+          error instanceof DOMException &&
+          error.name === 'AbortError'
+        ) {
+          return
+        }
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        setStatusRefreshError(
+          'The latest provisioning status could not be loaded. EnvForge will try again.',
+        )
+
+        timeoutId = window.setTimeout(
+          refreshEnvironmentStatus,
+          5000,
+        )
+      }
+    }
+
+    setStatusRefreshError(null)
+
+    timeoutId = window.setTimeout(
+      refreshEnvironmentStatus,
+      1500,
+    )
+
+    return () => {
+      controller.abort()
+
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [
+    createdEnvironment?.id,
+    createdEnvironment?.status,
+  ])
 
   function handleTemplateChange(
-  templateCode: string,
-) {
-  const selectedTemplate = templates.find(
-    (template) => template.code === templateCode,
-  )
+    templateCode: string,
+  ) {
+    const selectedTemplate = templates.find(
+      (template) => template.code === templateCode,
+    )
 
-  if (!selectedTemplate) {
-    return
+    if (!selectedTemplate) {
+      return
+    }
+
+    setForm({
+      ...form,
+      template: selectedTemplate.code,
+      imageVersion:
+        selectedTemplate.defaultImageVersion,
+    })
   }
-
-  setForm({
-    ...form,
-    template: selectedTemplate.code,
-    imageVersion:
-      selectedTemplate.defaultImageVersion,
-  })
-}
-
-
-
 
   async function handleSubmit(
-  event: FormEvent<HTMLFormElement>,
-) {
-  event.preventDefault()
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault()
 
-  setIsSubmitting(true)
-  setSubmitError(null)
-  setCreatedEnvironment(null)
+    setIsSubmitting(true)
+    setSubmitError(null)
+    setStatusRefreshError(null)
+    setRetryError(null)
+    setCreatedEnvironment(null)
 
-  try {
-    const environment = await createEnvironment(form)
-    setCreatedEnvironment(environment)
-  } catch (error) {
-    if (error instanceof EnvironmentApiError) {
-      setSubmitError(error.message)
-    } else {
-      setSubmitError(
-        'The Control API is unavailable. Please try again.',
-      )
+    try {
+      const environment = await createEnvironment(form)
+      setCreatedEnvironment(environment)
+    } catch (error) {
+      if (error instanceof EnvironmentApiError) {
+        setSubmitError(error.message)
+      } else {
+        setSubmitError(
+          'The Control API is unavailable. Please try again.',
+        )
+      }
+    } finally {
+      setIsSubmitting(false)
     }
-  } finally {
-    setIsSubmitting(false)
   }
-}
+
+  async function handleRetryProvisioning() {
+    if (
+      createdEnvironment === null ||
+      createdEnvironment.status !== 'FAILED'
+    ) {
+      return
+    }
+
+    setIsRetrying(true)
+    setRetryError(null)
+    setStatusRefreshError(null)
+
+    try {
+      const environment = await retryEnvironment(
+        createdEnvironment.id,
+      )
+
+      setCreatedEnvironment(environment)
+    } catch (error) {
+      if (error instanceof EnvironmentApiError) {
+        setRetryError(error.message)
+      } else {
+        setRetryError(
+          'The Control API is unavailable. Please try again.',
+        )
+      }
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
+  const isProvisioning =
+    createdEnvironment !== null &&
+    isProvisioningStatus(createdEnvironment.status)
+
+  const isImageVersionValid =
+    /^\d+\.\d+\.\d+$/.test(form.imageVersion)
 
   return (
     <div className="app">
@@ -167,12 +310,17 @@ function App() {
 
       <main className="content">
         <section className="introduction">
-          <p className="eyebrow">Create environment</p>
+          <p className="eyebrow">
+            Create environment
+          </p>
+
           <h2>Provision a temporary sandbox</h2>
+
           <p>
-            Configure an isolated Kubernetes environment. EnvForge will later
-            create its namespace, install the selected application through Helm
-            and monitor its health.
+            Configure an isolated Kubernetes environment.
+            EnvForge creates its namespace, installs the
+            selected application through Helm and monitors
+            its health.
           </p>
         </section>
 
@@ -181,7 +329,10 @@ function App() {
           onSubmit={handleSubmit}
         >
           <div className="field field-full">
-            <label htmlFor="name">Environment name</label>
+            <label htmlFor="name">
+              Environment name
+            </label>
+
             <input
               id="name"
               name="name"
@@ -199,6 +350,7 @@ function App() {
               pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
               required
             />
+
             <small>
               Use lowercase letters, numbers and hyphens.
             </small>
@@ -208,14 +360,18 @@ function App() {
             <label htmlFor="template">
               Application template
             </label>
+
             <select
               id="template"
               value={form.template}
               onChange={(event) =>
-                handleTemplateChange(event.target.value)
+                handleTemplateChange(
+                  event.target.value,
+                )
               }
               disabled={
-                templatesLoading || templates.length === 0
+                templatesLoading ||
+                templates.length === 0
               }
             >
               {templatesLoading && (
@@ -240,6 +396,7 @@ function App() {
                 </option>
               ))}
             </select>
+
             {templatesError && (
               <small className="field-error">
                 {templatesError}
@@ -251,6 +408,7 @@ function App() {
             <label htmlFor="imageVersion">
               Image version
             </label>
+
             <input
               id="imageVersion"
               type="text"
@@ -258,16 +416,35 @@ function App() {
               onChange={(event) =>
                 setForm({
                   ...form,
-                  imageVersion: event.target.value,
+                  imageVersion:
+                    event.target.value,
                 })
               }
-              placeholder="0.1.0"
+              placeholder="0.2.0"
+              pattern="[0-9]+[.][0-9]+[.][0-9]+"
+              maxLength={100}
+              aria-invalid={!isImageVersionValid}
               required
             />
+
+            <small>
+              Use semantic versioning, for example 1.4.2.
+            </small>
+
+            {form.imageVersion.length > 0 &&
+              !isImageVersionValid && (
+                <small className="field-error">
+                  Image version must follow semantic
+                  versioning, for example 1.4.2.
+                </small>
+              )}
           </div>
 
           <div className="field">
-            <label htmlFor="replicas">Replicas</label>
+            <label htmlFor="replicas">
+              Replicas
+            </label>
+
             <input
               id="replicas"
               type="number"
@@ -277,7 +454,9 @@ function App() {
               onChange={(event) =>
                 setForm({
                   ...form,
-                  replicas: Number(event.target.value),
+                  replicas: Number(
+                    event.target.value,
+                  ),
                 })
               }
               required
@@ -288,6 +467,7 @@ function App() {
             <label htmlFor="resourceProfile">
               Resource profile
             </label>
+
             <select
               id="resourceProfile"
               value={form.resourceProfile}
@@ -301,7 +481,9 @@ function App() {
               }
             >
               <option value="SMALL">Small</option>
-              <option value="MEDIUM">Medium</option>
+              <option value="MEDIUM">
+                Medium
+              </option>
               <option value="LARGE">Large</option>
             </select>
           </div>
@@ -310,13 +492,16 @@ function App() {
             <label htmlFor="lifetimeHours">
               Lifetime
             </label>
+
             <select
               id="lifetimeHours"
               value={form.lifetimeHours}
               onChange={(event) =>
                 setForm({
                   ...form,
-                  lifetimeHours: Number(event.target.value),
+                  lifetimeHours: Number(
+                    event.target.value,
+                  ),
                 })
               }
             >
@@ -337,15 +522,18 @@ function App() {
                 onChange={(event) =>
                   setForm({
                     ...form,
-                    monitoringEnabled: event.target.checked,
+                    monitoringEnabled:
+                      event.target.checked,
                   })
                 }
               />
 
               <span>
                 <strong>Enable monitoring</strong>
+
                 <small>
-                  Collect Prometheus metrics and display them in Grafana.
+                  Collect Prometheus metrics and display
+                  them in Grafana.
                 </small>
               </span>
             </label>
@@ -359,6 +547,8 @@ function App() {
                 setForm(initialForm)
                 setCreatedEnvironment(null)
                 setSubmitError(null)
+                setStatusRefreshError(null)
+                setRetryError(null)
               }}
             >
               Reset
@@ -370,7 +560,8 @@ function App() {
               disabled={
                 isSubmitting ||
                 templatesLoading ||
-                templates.length === 0
+                templates.length === 0 ||
+                !isImageVersionValid
               }
             >
               {isSubmitting
@@ -388,11 +579,12 @@ function App() {
             <strong>
               Environment could not be created
             </strong>
+
             <p>{submitError}</p>
           </section>
         )}
 
-        {createdEnvironment  && (
+        {createdEnvironment && (
           <section
             className="result"
             aria-live="polite"
@@ -401,18 +593,75 @@ function App() {
               <span className="result-status">
                 {createdEnvironment.status}
               </span>
+
               <h3>{createdEnvironment.name}</h3>
+
               <p>
-                The environment request was validated and persisted by
-                the EnvForge Control API.
+                {isProvisioning
+                  ? 'EnvForge is creating the Kubernetes namespace and installing the Helm release.'
+                  : createdEnvironment.status ===
+                    'READY'
+                    ? 'The Kubernetes environment is ready to use.'
+                    : createdEnvironment.status ===
+                      'FAILED'
+                      ? 'Provisioning failed. Check the Control API and Kubernetes events.'
+                      : `Environment lifecycle status: ${createdEnvironment.status}.`}
               </p>
+
+              {isProvisioning && (
+                <div
+                  className="provisioning-progress"
+                  role="status"
+                >
+                  <span
+                    className="provisioning-spinner"
+                    aria-hidden="true"
+                  />
+
+                  Refreshing provisioning status…
+                </div>
+              )}
+
+              {statusRefreshError && (
+                <p
+                  className="status-refresh-error"
+                  role="alert"
+                >
+                  {statusRefreshError}
+                </p>
+              )}
+              {createdEnvironment.status === 'FAILED' && (
+                <div className="retry-provisioning">
+                  <button
+                    type="button"
+                    className="primary-button retry-button"
+                    disabled={isRetrying}
+                    onClick={() => {
+                      void handleRetryProvisioning()
+                    }}
+                  >
+                    {isRetrying
+                      ? 'Retrying provisioning...'
+                      : 'Retry provisioning'}
+                  </button>
+
+                  {retryError && (
+                    <p
+                      className="retry-error"
+                      role="alert"
+                    >
+                      {retryError}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <dl>
               <div>
                 <dt>Namespace</dt>
                 <dd>
-                  env-{createdEnvironment.name}
+                  {createdEnvironment.namespace}
                 </dd>
               </div>
 
@@ -442,15 +691,31 @@ function App() {
           </section>
         )}
 
-        {createdEnvironment && (
-          <section className="deployments">
-            <h3>Deployments for {createdEnvironment.name}</h3>
-            <EnvironmentDeploymentsPage
-              environmentId={createdEnvironment.id}
-              environmentName={createdEnvironment.name}
-            />
-          </section>
+        {createdEnvironment?.status === 'READY' && (
+          <EnvironmentRuntimeCard
+            environmentId={createdEnvironment.id}
+          />
         )}
+
+
+        {createdEnvironment?.status ===
+          'READY' && (
+            <section className="deployments">
+              <h3>
+                Deployments for{' '}
+                {createdEnvironment.name}
+              </h3>
+
+              <EnvironmentDeploymentsPage
+                environmentId={
+                  createdEnvironment.id
+                }
+                environmentName={
+                  createdEnvironment.name
+                }
+              />
+            </section>
+          )}
       </main>
     </div>
   )

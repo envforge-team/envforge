@@ -1,0 +1,32 @@
+groups:
+  - name: envforge-lifecycle
+    rules:
+      - alert: EnvForgeCleanupWorkerDown
+        expr: up{job="envforge-cleanup-worker"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: lifecycle
+        annotations:
+          summary: "EnvForge cleanup worker is unavailable"
+          description: "Prometheus has not been able to scrape cleanup-worker for at least 2 minutes."
+
+      - alert: EnvForgeLifecycleOperationFailed
+        expr: increase(envforge_lifecycle_operations_total{result="failed"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          component: lifecycle
+        annotations:
+          summary: "EnvForge lifecycle operation failed"
+          description: "At least one cleanup, expiration, or rollback operation reached FAILED in the last 5 minutes."
+
+      - alert: EnvForgeLifecycleRepeatedRetries
+        expr: increase(envforge_lifecycle_operations_total{result="retrying"}[10m]) >= 3
+        for: 1m
+        labels:
+          severity: warning
+          component: lifecycle
+        annotations:
+          summary: "EnvForge lifecycle operations are repeatedly retrying"
+          description: "The cleanup worker recorded at least three retry events in the last 10 minutes."

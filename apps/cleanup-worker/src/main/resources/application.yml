@@ -4,11 +4,13 @@ server:
 spring:
   application:
     name: cleanup-worker
+
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/envforge}
     username: ${DB_USERNAME:envforge}
     password: ${DB_PASSWORD:envforge-local-password}
     driver-class-name: org.postgresql.Driver
+
   jpa:
     open-in-view: false
     hibernate:
@@ -17,6 +19,7 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+
   flyway:
     enabled: false
 
@@ -24,7 +27,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
@@ -37,3 +40,7 @@ envforge:
     scheduler-enabled: true
     scheduler-delay-milliseconds: 10000
     batch-size: 10
+    command-timeout-seconds: 300
+    kube-context: ${ENVFORGE_KUBE_CONTEXT:kind-envforge}
+    runner:
+      mode: ${ENVFORGE_LIFECYCLE_RUNNER_MODE:dry-run}

@@ -1,0 +1,333 @@
+name: Observability validation
+
+on:
+  workflow_dispatch:
+
+  pull_request:
+    paths:
+      - "apps/reliability-demo-api/**"
+      - "apps/traffic-generator/**"
+      - "deployment/helm/envforge-monitoring/**"
+      - "deployment/kubernetes/reliability-demo-api/**"
+      - "observability/kubernetes/**"
+      - "observability/scripts/**"
+      - ".github/workflows/observability-validation.yml"
+
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/reliability-demo-api/**"
+      - "apps/traffic-generator/**"
+      - "deployment/helm/envforge-monitoring/**"
+      - "deployment/kubernetes/reliability-demo-api/**"
+      - "observability/kubernetes/**"
+      - "observability/scripts/**"
+      - ".github/workflows/observability-validation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: observability-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kind-observability:
+    name: Kind observability end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      CLUSTER_NAME: envforge-observability-ci
+      APP_NAMESPACE: env-reliability-demo
+      MONITORING_NAMESPACE: monitoring
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v3.18.4
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.27.0
+          node_image: kindest/node:v1.32.2
+          kubectl_version: v1.32.2
+          cluster_name: envforge-observability-ci
+          wait: 120s
+
+      - name: Verify Kind cluster
+        run: |
+          kubectl config current-context
+          kubectl get nodes
+
+          kubectl wait \
+            --for=condition=Ready \
+            node \
+            --all \
+            --timeout=120s
+
+      - name: Build reliability images
+        run: |
+          docker build \
+            --tag reliability-demo-api:0.1.0 \
+            apps/reliability-demo-api
+
+          docker build \
+            --tag envforge-traffic-generator:0.1.0 \
+            apps/traffic-generator
+
+          docker image inspect reliability-demo-api:0.1.0
+          docker image inspect envforge-traffic-generator:0.1.0
+
+      - name: Load images into Kind
+        run: |
+          kind load docker-image \
+            reliability-demo-api:0.1.0 \
+            --name "${CLUSTER_NAME}"
+
+          kind load docker-image \
+            envforge-traffic-generator:0.1.0 \
+            --name "${CLUSTER_NAME}"
+
+      - name: Add observability Helm repositories
+        run: |
+          helm repo add prometheus-community \
+            https://prometheus-community.github.io/helm-charts
+
+          helm repo add grafana \
+            https://grafana.github.io/helm-charts
+
+          helm repo add grafana-community \
+            https://grafana-community.github.io/helm-charts
+
+          helm repo update
+
+      - name: Validate EnvForge monitoring chart
+        run: |
+          helm lint \
+            deployment/helm/envforge-monitoring \
+            --values \
+            deployment/helm/envforge-monitoring/values-servicemonitor.yaml
+
+          helm template \
+            envforge-monitoring \
+            deployment/helm/envforge-monitoring \
+            --namespace "${APP_NAMESPACE}" \
+            --values \
+            deployment/helm/envforge-monitoring/values-servicemonitor.yaml \
+            > /tmp/envforge-monitoring.yaml
+
+          test -s /tmp/envforge-monitoring.yaml
+
+      - name: Validate observability Helm configuration
+        run: |
+          helm template \
+            kube-prometheus-stack \
+            prometheus-community/kube-prometheus-stack \
+            --version 87.21.0 \
+            --namespace "${MONITORING_NAMESPACE}" \
+            --values \
+            observability/kubernetes/kube-prometheus-stack-kind-values.yaml \
+            > /tmp/kube-prometheus-stack.yaml
+
+          helm template \
+            loki \
+            grafana-community/loki \
+            --version 18.9.0 \
+            --namespace "${MONITORING_NAMESPACE}" \
+            --values \
+            observability/kubernetes/loki-kind-values.yaml \
+            > /tmp/loki.yaml
+
+          helm template \
+            alloy \
+            grafana/alloy \
+            --version 1.11.1 \
+            --namespace "${MONITORING_NAMESPACE}" \
+            --values \
+            observability/kubernetes/alloy-kind-values.yaml \
+            > /tmp/alloy.yaml
+
+          test -s /tmp/kube-prometheus-stack.yaml
+          test -s /tmp/loki.yaml
+          test -s /tmp/alloy.yaml
+
+      - name: Install Loki
+        run: |
+          helm upgrade \
+            --install \
+            loki \
+            grafana-community/loki \
+            --version 18.9.0 \
+            --namespace "${MONITORING_NAMESPACE}" \
+            --create-namespace \
+            --values \
+            observability/kubernetes/loki-kind-values.yaml \
+            --wait \
+            --timeout 10m
+
+      - name: Install Prometheus and Grafana
+        run: |
+          helm upgrade \
+            --install \
+            kube-prometheus-stack \
+            prometheus-community/kube-prometheus-stack \
+            --version 87.21.0 \
+            --namespace "${MONITORING_NAMESPACE}" \
+            --values \
+            observability/kubernetes/kube-prometheus-stack-kind-values.yaml \
+            --wait \
+            --timeout 10m
+
+      - name: Install Grafana Alloy
+        run: |
+          helm upgrade \
+            --install \
+            alloy \
+            grafana/alloy \
+            --version 1.11.1 \
+            --namespace "${MONITORING_NAMESPACE}" \
+            --values \
+            observability/kubernetes/alloy-kind-values.yaml \
+            --wait \
+            --timeout 10m
+
+      - name: Deploy Reliability Demo API
+        run: |
+          kubectl apply \
+            --filename \
+            deployment/kubernetes/reliability-demo-api/namespace.yaml
+
+          kubectl apply \
+            --filename \
+            deployment/kubernetes/reliability-demo-api/resource-quota.yaml
+
+          kubectl apply \
+            --filename \
+            deployment/kubernetes/reliability-demo-api/limit-range.yaml
+
+          kubectl apply \
+            --filename \
+            deployment/kubernetes/reliability-demo-api/service.yaml
+
+          kubectl apply \
+            --filename \
+            deployment/kubernetes/reliability-demo-api/deployment.yaml
+
+          kubectl rollout status \
+            deployment/reliability-demo-api \
+            --namespace "${APP_NAMESPACE}" \
+            --timeout=180s
+
+      - name: Install EnvForge monitoring workload
+        run: |
+          helm upgrade \
+            --install \
+            envforge-monitoring \
+            deployment/helm/envforge-monitoring \
+            --namespace "${APP_NAMESPACE}" \
+            --values \
+            deployment/helm/envforge-monitoring/values-servicemonitor.yaml \
+            --wait \
+            --timeout 5m
+
+      - name: Install Prometheus recording rules
+        run: |
+          kubectl apply \
+            --filename \
+            observability/kubernetes/reliability-recording-rules.yaml
+
+          kubectl get prometheusrule \
+            --namespace "${MONITORING_NAMESPACE}" \
+            envforge-reliability-recording-rules
+
+      - name: Install reliability alerts and dashboard
+        run: |
+          kubectl apply \
+            --filename \
+            observability/kubernetes/reliability-alert-rules.yaml
+
+          kubectl apply \
+            --filename \
+            observability/kubernetes/reliability-dashboard-configmap.yaml
+
+          kubectl get prometheusrule \
+            --namespace "${MONITORING_NAMESPACE}" \
+            envforge-reliability-alert-rules
+
+          kubectl get configmap \
+            --namespace "${MONITORING_NAMESPACE}" \
+            envforge-reliability-dashboard
+
+      - name: Wait for initial telemetry
+        run: |
+          kubectl get pods \
+            --namespace "${MONITORING_NAMESPACE}"
+
+          kubectl get pods \
+            --namespace "${APP_NAMESPACE}"
+
+          echo "Waiting for Prometheus scrapes and traffic logs..."
+          sleep 30
+
+      - name: Run end-to-end observability validation
+        env:
+          ENVFORGE_KUBE_CONTEXT: kind-envforge-observability-ci
+        run: |
+          chmod +x \
+            observability/scripts/validate-kind-observability.sh
+
+          ./observability/scripts/validate-kind-observability.sh
+
+      - name: Collect Kubernetes diagnostics
+        if: failure()
+        run: |
+          echo "=== Monitoring pods ==="
+          kubectl get pods \
+            --namespace "${MONITORING_NAMESPACE}" \
+            --output wide \
+            || true
+
+          echo "=== Application pods ==="
+          kubectl get pods \
+            --namespace "${APP_NAMESPACE}" \
+            --output wide \
+            || true
+
+          echo "=== ServiceMonitors ==="
+          kubectl get servicemonitor \
+            --all-namespaces \
+            || true
+
+          echo "=== Monitoring events ==="
+          kubectl get events \
+            --namespace "${MONITORING_NAMESPACE}" \
+            --sort-by=.lastTimestamp \
+            || true
+
+          echo "=== Application events ==="
+          kubectl get events \
+            --namespace "${APP_NAMESPACE}" \
+            --sort-by=.lastTimestamp \
+            || true
+
+          echo "=== Alloy logs ==="
+          kubectl logs \
+            --namespace "${MONITORING_NAMESPACE}" \
+            --selector app.kubernetes.io/name=alloy \
+            --tail=100 \
+            || true
+
+          echo "=== Loki logs ==="
+          kubectl logs \
+            --namespace "${MONITORING_NAMESPACE}" \
+            loki-0 \
+            --all-containers \
+            --tail=100 \
+            || true

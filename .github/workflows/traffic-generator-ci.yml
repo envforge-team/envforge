@@ -1,0 +1,73 @@
+name: Traffic Generator CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/traffic-generator/**"
+      - ".github/workflows/traffic-generator-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/traffic-generator/**"
+      - ".github/workflows/traffic-generator-ci.yml"
+
+jobs:
+  build:
+    name: Build traffic generator image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t envforge-traffic-generator:${GITHUB_SHA} \
+            apps/traffic-generator
+
+      - name: Verify image exists
+        run: |
+          docker image inspect \
+            envforge-traffic-generator:${GITHUB_SHA} \
+            >/dev/null
+
+      - name: Verify container runs as non-root
+        run: |
+          USER_ID="$(
+            docker run \
+              --rm \
+              --entrypoint id \
+              envforge-traffic-generator:${GITHUB_SHA} \
+              -u
+          )"
+
+          echo "Container UID: ${USER_ID}"
+
+          if [ "${USER_ID}" != "10001" ]; then
+            echo "Expected UID 10001."
+            exit 1
+          fi
+
+      - name: Smoke test container startup
+        run: |
+          docker run -d \
+            --name traffic-generator-ci-test \
+            -e TARGET_URL=http://127.0.0.1:9/work \
+            -e REQUESTS_PER_SECOND=1 \
+            -e REQUEST_TIMEOUT_SECONDS=1 \
+            envforge-traffic-generator:${GITHUB_SHA}
+
+          sleep 5
+
+          docker logs traffic-generator-ci-test \
+            > /tmp/traffic-generator.log 2>&1
+
+          cat /tmp/traffic-generator.log
+
+          grep -q \
+            "EnvForge traffic generator started" \
+            /tmp/traffic-generator.log
+
+          docker rm -f traffic-generator-ci-test

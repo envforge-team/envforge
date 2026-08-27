@@ -21,6 +21,8 @@ import org.springframework.boot.webmvc.test
 import org.springframework.test.context.bean.override
     .mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import com.envforge.controlapi.security.AuthorizationService;
+import com.envforge.controlapi.security.CurrentUserProvider;
 
 @WebMvcTest(MonitoringController.class)
 class MonitoringEdgeCasesControllerTest {
@@ -30,6 +32,12 @@ class MonitoringEdgeCasesControllerTest {
 
     @MockitoBean
     private MonitoringService monitoringService;
+
+    @MockitoBean
+    private CurrentUserProvider currentUserProvider;
+
+    @MockitoBean
+    private AuthorizationService authorizationService;
 
     @Test
     void shouldReturnPartialDegradedMetrics()

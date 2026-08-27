@@ -1,0 +1,114 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: envforge-reliability-recording-rules
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: envforge
+    app.kubernetes.io/component: monitoring
+spec:
+  groups:
+    - name: envforge.reliability.recording
+      interval: 30s
+      rules:
+        - record: envforge_reliability:http_requests_per_second:rate5m
+          expr: |
+            sum(
+              rate(
+                http_server_requests_seconds_count{
+                  namespace="env-reliability-demo",
+                  service="reliability-demo-api-metrics"
+                }[5m]
+              )
+            )
+
+        - record: envforge_reliability:http_5xx_per_second:rate5m
+          expr: |
+            sum(
+              rate(
+                http_server_requests_seconds_count{
+                  namespace="env-reliability-demo",
+                  service="reliability-demo-api-metrics",
+                  status=~"5.."
+                }[5m]
+              )
+            )
+            or vector(0)
+
+        - record: envforge_reliability:http_5xx_ratio:rate5m
+          expr: |
+            (
+              sum(
+                rate(
+                  http_server_requests_seconds_count{
+                    namespace="env-reliability-demo",
+                    service="reliability-demo-api-metrics",
+                    status=~"5.."
+                  }[5m]
+                )
+              )
+              or vector(0)
+            )
+            /
+            clamp_min(
+              sum(
+                rate(
+                  http_server_requests_seconds_count{
+                    namespace="env-reliability-demo",
+                    service="reliability-demo-api-metrics"
+                  }[5m]
+                )
+              ),
+              0.001
+            )
+
+        - record: envforge_reliability:http_avg_latency_seconds:rate5m
+          expr: |
+            sum(
+              rate(
+                http_server_requests_seconds_sum{
+                  namespace="env-reliability-demo",
+                  service="reliability-demo-api-metrics"
+                }[5m]
+              )
+            )
+            /
+            clamp_min(
+              sum(
+                rate(
+                  http_server_requests_seconds_count{
+                    namespace="env-reliability-demo",
+                    service="reliability-demo-api-metrics"
+                  }[5m]
+                )
+              ),
+              0.001
+            )
+
+        - record: envforge_reliability:targets_up
+          expr: |
+            sum(
+              up{
+                namespace="env-reliability-demo",
+                service="reliability-demo-api-metrics"
+              }
+            )
+            or vector(0)
+
+        - record: envforge_reliability:process_cpu_usage:avg
+          expr: |
+            avg(
+              process_cpu_usage{
+                namespace="env-reliability-demo",
+                service="reliability-demo-api-metrics"
+              }
+            )
+
+        - record: envforge_reliability:jvm_memory_used_bytes:sum
+          expr: |
+            sum(
+              jvm_memory_used_bytes{
+                namespace="env-reliability-demo",
+                service="reliability-demo-api-metrics"
+              }
+            )

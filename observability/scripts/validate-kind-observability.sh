@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_CONTEXT="kind-envforge-local"
+EXPECTED_CONTEXT="${ENVFORGE_KUBE_CONTEXT:-kind-envforge}"
 APP_NAMESPACE="env-reliability-demo"
 MONITORING_NAMESPACE="monitoring"
 
 PROM_PORT=19092
 LOKI_PORT=13100
 GRAFANA_PORT=13001
+APP_PORT=18080
 
 PROM_PF=""
 LOKI_PF=""
 GRAFANA_PF=""
+APP_PF=""
 
 cleanup() {
   [ -n "${PROM_PF}" ] && kill "${PROM_PF}" 2>/dev/null || true
   [ -n "${LOKI_PF}" ] && kill "${LOKI_PF}" 2>/dev/null || true
   [ -n "${GRAFANA_PF}" ] && kill "${GRAFANA_PF}" 2>/dev/null || true
+  [ -n "${APP_PF}" ] && kill "${APP_PF}" 2>/dev/null || true
 }
 
 trap cleanup EXIT
@@ -73,6 +76,46 @@ kubectl wait \
 
 ok "Reliability Demo API is available"
 ok "Traffic generator is available"
+
+echo
+echo "=== Reliability security validation ==="
+
+TRAFFIC_SERVICE="$(
+  kubectl get service \
+    --namespace "${APP_NAMESPACE}" \
+    --selector app=traffic-generator \
+    --output name
+)"
+
+if [ -n "${TRAFFIC_SERVICE}" ]; then
+  fail "Traffic generator must not be exposed by a Kubernetes Service"
+fi
+
+ok "Traffic generator has no Kubernetes Service"
+
+AUTOMOUNT_TOKEN="$(
+  kubectl get deployment traffic-generator \
+    --namespace "${APP_NAMESPACE}" \
+    -o jsonpath='{.spec.template.spec.automountServiceAccountToken}'
+)"
+
+if [ "${AUTOMOUNT_TOKEN}" != "false" ]; then
+  fail "Traffic generator must disable ServiceAccount token automount"
+fi
+
+ok "Traffic generator ServiceAccount token automount is disabled"
+
+READ_ONLY_ROOT="$(
+  kubectl get deployment traffic-generator \
+    --namespace "${APP_NAMESPACE}" \
+    -o jsonpath='{.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem}'
+)"
+
+if [ "${READ_ONLY_ROOT}" != "true" ]; then
+  fail "Traffic generator root filesystem must be read-only"
+fi
+
+ok "Traffic generator root filesystem is read-only"
 
 kubectl get servicemonitor reliability-demo-api \
   --namespace "${APP_NAMESPACE}" \
@@ -148,18 +191,49 @@ wait_http \
   "http://localhost:${GRAFANA_PORT}/api/health" \
   "Grafana"
 
+kubectl \
+  --namespace "${APP_NAMESPACE}" \
+  port-forward \
+  svc/reliability-demo-api \
+  "${APP_PORT}:80" \
+  >/tmp/envforge-reliability-port-forward.log 2>&1 &
+
+APP_PF=$!
+
+wait_http \
+  "http://localhost:${APP_PORT}/health" \
+  "Reliability Demo API"
+
+INCIDENT_STATUS="$(
+  curl -sS \
+    -o /dev/null \
+    -w '%{http_code}' \
+    -X POST \
+    "http://localhost:${APP_PORT}/admin/incidents/failure?enabled=true"
+)"
+
+if [ "${INCIDENT_STATUS}" != "403" ]; then
+  fail "Unauthenticated incident control expected HTTP 403, got ${INCIDENT_STATUS}"
+fi
+
+ok "Incident administration rejects requests without the incident key"
+
 echo
 echo "=== Prometheus validation ==="
 
-PROM_UP="$(
-  curl -GsS \
-    "http://localhost:${PROM_PORT}/api/v1/query" \
-    --data-urlencode \
-    'query=up{service="reliability-demo-api-metrics"}'
-)"
+PROM_TARGETS_READY=""
 
-printf '%s' "${PROM_UP}" |
-python3 -c '
+for ATTEMPT in $(seq 1 18); do
+  PROM_UP="$(
+    curl -GsS \
+      "http://localhost:${PROM_PORT}/api/v1/query" \
+      --data-urlencode \
+      'query=up{service="reliability-demo-api-metrics"}'
+  )"
+
+  PROM_TARGETS_READY="$(
+    printf '%s' "${PROM_UP}" |
+    python3 -c '
 import json
 import sys
 
@@ -167,31 +241,47 @@ data = json.load(sys.stdin)
 results = data["data"]["result"]
 
 if len(results) < 2:
-    raise SystemExit(
-        f"Expected at least 2 Prometheus targets, got {len(results)}"
-    )
+    print("")
+    raise SystemExit(0)
 
-bad = [
-    item
-    for item in results
-    if float(item["value"][1]) != 1.0
-]
+values = [float(item["value"][1]) for item in results]
 
-if bad:
-    raise SystemExit("One or more Prometheus targets are not UP")
+if not all(value == 1.0 for value in values):
+    print("")
+    raise SystemExit(0)
 
-print(f"[OK] Prometheus reports {len(results)} workload targets UP")
+print(len(results))
 '
+  )"
 
-HTTP_METRICS="$(
-  curl -GsS \
-    "http://localhost:${PROM_PORT}/api/v1/query" \
-    --data-urlencode \
-    'query=sum(http_server_requests_seconds_count{namespace="env-reliability-demo",uri="/work"})'
-)"
+  if [ -n "${PROM_TARGETS_READY}" ]; then
+    break
+  fi
 
-printf '%s' "${HTTP_METRICS}" |
-python3 -c '
+  echo     "Prometheus targets not ready yet "     "(attempt ${ATTEMPT}/18); waiting 5s..."
+
+  sleep 5
+done
+
+if [ -z "${PROM_TARGETS_READY}" ]; then
+  fail "Expected at least 2 Prometheus targets UP after 90 seconds"
+fi
+
+ok "Prometheus reports ${PROM_TARGETS_READY} workload targets UP"
+
+HTTP_REQUEST_COUNT=""
+
+for ATTEMPT in $(seq 1 12); do
+  HTTP_METRICS="$(
+    curl -GsS \
+      "http://localhost:${PROM_PORT}/api/v1/query" \
+      --data-urlencode \
+      'query=sum(http_server_requests_seconds_count{namespace="env-reliability-demo",uri="/work"})'
+  )"
+
+  HTTP_REQUEST_COUNT="$(
+    printf '%s' "${HTTP_METRICS}" |
+    python3 -c '
 import json
 import sys
 
@@ -199,15 +289,152 @@ data = json.load(sys.stdin)
 results = data["data"]["result"]
 
 if not results:
-    raise SystemExit("No /work request metric found")
+    print("")
+    raise SystemExit(0)
 
 value = float(results[0]["value"][1])
 
 if value <= 0:
-    raise SystemExit("/work request count is not greater than zero")
+    print("")
+    raise SystemExit(0)
 
-print(f"[OK] Prometheus /work request count = {value:g}")
+print(value)
 '
+  )"
+
+  if [ -n "${HTTP_REQUEST_COUNT}" ]; then
+    break
+  fi
+
+  echo     "HTTP workload metrics not ready yet "     "(attempt ${ATTEMPT}/12); waiting 5s..."
+
+  sleep 5
+done
+
+if [ -z "${HTTP_REQUEST_COUNT}" ]; then
+  fail "No /work request metric available after 60 seconds"
+fi
+
+python3 - "${HTTP_REQUEST_COUNT}" <<'PYTHON'
+import sys
+
+value = float(sys.argv[1])
+print(f"[OK] Prometheus /work request count = {value:g}")
+PYTHON
+
+echo
+echo "=== Prometheus recording rules ==="
+
+RECORDED_TARGETS_VALUE=""
+
+for ATTEMPT in $(seq 1 18); do
+  RECORDED_TARGETS="$(
+    curl -GsS \
+      "http://localhost:${PROM_PORT}/api/v1/query" \
+      --data-urlencode \
+      'query=envforge_reliability:targets_up'
+  )"
+
+  RECORDED_TARGETS_VALUE="$(
+    printf '%s' "${RECORDED_TARGETS}" |
+    python3 -c '
+import json
+import sys
+
+data = json.load(sys.stdin)
+results = data["data"]["result"]
+
+if results:
+    print(results[0]["value"][1])
+'
+  )"
+
+  if [ -n "${RECORDED_TARGETS_VALUE}" ]; then
+    if python3 - "${RECORDED_TARGETS_VALUE}" <<'PYTHON'
+import sys
+
+value = float(sys.argv[1])
+raise SystemExit(0 if value >= 2 else 1)
+PYTHON
+    then
+      break
+    fi
+  fi
+
+  echo     "Recording rule not ready yet: "     "value=${RECORDED_TARGETS_VALUE:-none} "     "(attempt ${ATTEMPT}/18); waiting 5s..."
+
+  sleep 5
+done
+
+if [ -z "${RECORDED_TARGETS_VALUE}" ]; then
+  fail "Recording rule targets_up returned no result after 90 seconds"
+fi
+
+python3 - "${RECORDED_TARGETS_VALUE}" <<'PYTHON'
+import sys
+
+value = float(sys.argv[1])
+
+if value < 2:
+    raise SystemExit(
+        f"Expected at least 2 recorded targets UP after retries, got {value:g}"
+    )
+
+print(f"[OK] Recording rule reports {value:g} workload targets UP")
+PYTHON
+
+echo
+echo "=== Prometheus reliability alerts ==="
+
+ALERTS_READY=""
+
+for ATTEMPT in $(seq 1 18); do
+  ALERT_RULES="$(
+    curl -fsS       "http://localhost:${PROM_PORT}/api/v1/rules?type=alert"
+  )"
+
+  ALERTS_READY="$(
+    printf '%s' "${ALERT_RULES}" |
+    python3 -c '
+import json
+import sys
+
+wanted = {
+    "EnvForgeReliabilityTargetDown",
+    "EnvForgeReliabilityHigh5xxRatio",
+    "EnvForgeReliabilityHighLatency",
+    "EnvForgeReliabilityHighCpu",
+}
+
+data = json.load(sys.stdin)
+
+found = set()
+
+for group in data["data"]["groups"]:
+    for rule in group.get("rules", []):
+        name = rule.get("name")
+        if name in wanted:
+            found.add(name)
+
+if found == wanted:
+    print("ready")
+'
+  )"
+
+  if [ "${ALERTS_READY}" = "ready" ]; then
+    break
+  fi
+
+  echo     "Reliability alert rules not ready yet "     "(attempt ${ATTEMPT}/18); waiting 5s..."
+
+  sleep 5
+done
+
+if [ "${ALERTS_READY}" != "ready" ]; then
+  fail "Reliability alert rules were not loaded after 90 seconds"
+fi
+
+ok "Prometheus loaded all 4 reliability alert rules"
 
 echo
 echo "=== Loki validation ==="
@@ -287,6 +514,36 @@ curl -fsS \
   >/dev/null
 
 ok "Grafana can reach Loki datasource"
+
+DASHBOARD="$(
+  curl -fsS \
+    -u "admin:${GRAFANA_PASSWORD}" \
+    "http://localhost:${GRAFANA_PORT}/api/dashboards/uid/envforge-reliability"
+)"
+
+printf '%s' "${DASHBOARD}" |
+python3 -c '
+import json
+import sys
+
+data = json.load(sys.stdin)
+dashboard = data["dashboard"]
+
+if dashboard.get("uid") != "envforge-reliability":
+    raise SystemExit("Reliability dashboard UID is invalid")
+
+panels = dashboard.get("panels", [])
+
+if len(panels) < 10:
+    raise SystemExit(
+        f"Expected at least 10 dashboard panels, got {len(panels)}"
+    )
+
+print(
+    f"[OK] Grafana reliability dashboard loaded "
+    f"with {len(panels)} panels"
+)
+'
 
 echo
 echo "======================================"

@@ -19,6 +19,11 @@ spec:
         {{- include "envforge-platform.labels" . | nindent 8 }}
     spec:
       serviceAccountName: control-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: control-api
           image: "{{ .Values.controlApi.image.repository }}:{{ .Values.controlApi.image.tag }}"
@@ -26,13 +31,20 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: DB_URL
               value: {{ .Values.controlApi.env.dbUrl | quote }}
             - name: DB_USERNAME
               value: {{ .Values.controlApi.env.dbUsername | quote }}
             - name: DB_PASSWORD
-              value: {{ .Values.controlApi.env.dbPassword | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: control-api-db
+                  key: db-password
           resources:
             {{- toYaml .Values.controlApi.resources | nindent 12 }}
           readinessProbe:

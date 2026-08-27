@@ -2,20 +2,26 @@ package com.envforge.controlapi.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Permissive security configuration for initial development.
+ * Permissive security configuration for local development and tests.
  *
- * TODO (Săptămâna 7): replace anyRequest().permitAll() with real
- * authorization rules once Entra ID / JWT resource server is wired in,
- * and enforce role-based access (USER / OPERATOR / ADMIN).
+ * Active whenever the "entra" profile is NOT set (the default). See
+ * EntraSecurityConfig for the real, JWT-backed configuration used when
+ * running with --spring.profiles.active=entra (Ziua 31).
+ *
+ * TODO (Ziua 32): once role-based access is enforced in EntraSecurityConfig,
+ * consider whether this permissive dev config should also gain basic role
+ * checks, or stay fully open for local development convenience.
  */
 @Configuration
 @EnableWebSecurity
+@Profile("!entra")
 public class SecurityConfig {
 
     @Bean

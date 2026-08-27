@@ -150,6 +150,48 @@ class EnvironmentControllerTest {
     }
 
     @Test
+    void shouldRejectInvalidImageVersion()
+        throws Exception {
+        String request = """
+            {
+            "name": "invalid-version-demo",
+            "template": "STATIC_WEB",
+            "imageVersion": "0..0",
+            "replicas": 1,
+            "resourceProfile": "SMALL",
+            "lifetimeHours": 2,
+            "monitoringEnabled": true
+            }
+            """;
+
+        mockMvc.perform(
+                post("/api/environments")
+                    .contentType(
+                        MediaType.APPLICATION_JSON
+                    )
+                    .content(request)
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.status").value(400)
+            )
+            .andExpect(
+                jsonPath("$.message")
+                    .value(
+                        "Request validation failed"
+                    )
+            )
+            .andExpect(
+                jsonPath(
+                    "$.validationErrors.imageVersion"
+                )
+                    .value(
+                        "Image version must follow semantic versioning (e.g. 1.4.2)"
+                    )
+            );
+    }
+
+    @Test
     void shouldListEnvironments() throws Exception {
         EnvironmentResponse first =
             TestEnvironmentFactory.response(
