@@ -202,7 +202,48 @@ APP_PF=$!
 
 wait_http \
   "http://localhost:${APP_PORT}/health" \
-  "Reliability Demo API"
+  "Reliability Demo API health"
+
+wait_http \
+  "http://localhost:${APP_PORT}/ready" \
+  "Reliability Demo API readiness"
+
+echo
+echo "=== Workload metrics source validation ==="
+
+RAW_METRICS="$(
+  curl -fsS \
+    "http://localhost:${APP_PORT}/actuator/prometheus"
+)"
+
+printf '%s' "${RAW_METRICS}" |
+python3 -c '
+import sys
+
+metrics = sys.stdin.read()
+
+required = {
+    "http_server_requests_seconds_count",
+    "process_cpu_usage",
+    "jvm_memory_used_bytes",
+}
+
+missing = [
+    name for name in sorted(required)
+    if name not in metrics
+]
+
+if missing:
+    raise SystemExit(
+        "Missing raw workload metric(s): "
+        + ", ".join(missing)
+    )
+
+print(
+    "[OK] Workload exposes HTTP, CPU and JVM "
+    "metrics through Actuator"
+)
+'
 
 INCIDENT_STATUS="$(
   curl -sS \
@@ -384,6 +425,68 @@ print(f"[OK] Recording rule reports {value:g} workload targets UP")
 PYTHON
 
 echo
+echo "=== Recording rule inventory ==="
+
+RECORDING_RULES="$(
+  curl -fsS \
+    "http://localhost:${PROM_PORT}/api/v1/rules?type=record"
+)"
+
+printf '%s' "${RECORDING_RULES}" |
+python3 -c '
+import json
+import sys
+
+wanted = {
+    "envforge_reliability:http_requests_per_second:rate5m",
+    "envforge_reliability:http_5xx_per_second:rate5m",
+    "envforge_reliability:http_5xx_ratio:rate5m",
+    "envforge_reliability:http_avg_latency_seconds:rate5m",
+    "envforge_reliability:targets_up",
+    "envforge_reliability:process_cpu_usage:avg",
+    "envforge_reliability:jvm_memory_used_bytes:sum",
+}
+
+data = json.load(sys.stdin)
+
+found = set()
+unhealthy = []
+
+for group in data["data"]["groups"]:
+    for rule in group.get("rules", []):
+        name = rule.get("name")
+
+        if name not in wanted:
+            continue
+
+        found.add(name)
+
+        if rule.get("health") not in (None, "ok"):
+            unhealthy.append(
+                f"{name}={rule.get('health')}"
+            )
+
+missing = wanted - found
+
+if missing:
+    raise SystemExit(
+        "Missing recording rule(s): "
+        + ", ".join(sorted(missing))
+    )
+
+if unhealthy:
+    raise SystemExit(
+        "Unhealthy recording rule(s): "
+        + ", ".join(sorted(unhealthy))
+    )
+
+print(
+    "[OK] Prometheus loaded all 7 reliability "
+    "recording rules and they are healthy"
+)
+'
+
+echo
 echo "=== Prometheus reliability alerts ==="
 
 ALERTS_READY=""
@@ -435,6 +538,45 @@ if [ "${ALERTS_READY}" != "ready" ]; then
 fi
 
 ok "Prometheus loaded all 4 reliability alert rules"
+
+printf '%s' "${ALERT_RULES}" |
+python3 -c '
+import json
+import sys
+
+wanted = {
+    "EnvForgeReliabilityTargetDown",
+    "EnvForgeReliabilityHigh5xxRatio",
+    "EnvForgeReliabilityHighLatency",
+    "EnvForgeReliabilityHighCpu",
+}
+
+data = json.load(sys.stdin)
+
+unhealthy = []
+
+for group in data["data"]["groups"]:
+    for rule in group.get("rules", []):
+        name = rule.get("name")
+
+        if name in wanted:
+            health = rule.get("health")
+
+            if health not in (None, "ok"):
+                unhealthy.append(
+                    f"{name}={health}"
+                )
+
+if unhealthy:
+    raise SystemExit(
+        "Unhealthy alert rule(s): "
+        + ", ".join(sorted(unhealthy))
+    )
+
+print(
+    "[OK] All 4 reliability alert rules are healthy"
+)
+'
 
 echo
 echo "=== Loki validation ==="
@@ -515,6 +657,13 @@ curl -fsS \
 
 ok "Grafana can reach Loki datasource"
 
+curl -fsS \
+  -u "admin:${GRAFANA_PASSWORD}" \
+  "http://localhost:${GRAFANA_PORT}/api/datasources/uid/prometheus/health" \
+  >/dev/null
+
+ok "Grafana can reach Prometheus datasource"
+
 DASHBOARD="$(
   curl -fsS \
     -u "admin:${GRAFANA_PASSWORD}" \
@@ -539,9 +688,35 @@ if len(panels) < 10:
         f"Expected at least 10 dashboard panels, got {len(panels)}"
     )
 
+required_titles = {
+    "Reliability targets UP",
+    "Request rate",
+    "HTTP 5xx ratio",
+    "Average HTTP latency",
+    "HTTP request and 5xx rate",
+    "Application CPU usage",
+    "JVM memory usage",
+    "HTTP latency over time",
+    "Target availability over time",
+    "Reliability workload logs",
+}
+
+titles = {
+    panel.get("title")
+    for panel in panels
+}
+
+missing = required_titles - titles
+
+if missing:
+    raise SystemExit(
+        "Missing reliability dashboard panel(s): "
+        + ", ".join(sorted(missing))
+    )
+
 print(
     f"[OK] Grafana reliability dashboard loaded "
-    f"with {len(panels)} panels"
+    f"with all {len(required_titles)} required panels"
 )
 '
 
