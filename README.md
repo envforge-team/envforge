@@ -12,14 +12,19 @@ The local reference environment runs on Kind, while the repository also demonstr
 
 The portal provides a responsive self-service interface where users can:
 
-- create temporary Kubernetes environments;
-- select an application template and image version;
-- configure replicas, resource profiles and lifetime;
-- follow provisioning states in real time;
-- inspect live Kubernetes and Helm runtime information;
-- retry failed provisioning after resolving the underlying problem;
-- update deployed application versions;
+- create temporary Kubernetes environments
+- select an application template and image version
+- configure replicas, resource profiles and lifetime
+- follow provisioning states in real time
+- inspect live Kubernetes and Helm runtime information
+- retry failed provisioning after resolving the underlying problem
+- update deployed application versions
 - view deployment history and monitoring information.
+
+<img width="1912" alt="image" src="https://github.com/user-attachments/assets/e1523a40-695d-4487-8e3e-621f164bb56b" />
+<img width="1918" alt="image" src="https://github.com/user-attachments/assets/f55c159f-1d19-4f53-a5bb-ab8b53c0a378" />
+
+
 
 ---
 
@@ -52,12 +57,12 @@ REQUESTED → PROVISIONING → DEPLOYING → READY
 
 The portal retrieves live state from Kind through `kubectl` and Helm and displays:
 
-- namespace existence;
-- Helm release status;
-- Deployment name;
-- desired and ready replicas;
-- Service name;
-- runtime observation time;
+- namespace existence
+- Helm release status
+- Deployment name
+- desired and ready replicas
+- Service name
+- runtime observation time
 - aggregated environment health.
 
 ### Provisioning Retry
