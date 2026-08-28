@@ -22,7 +22,8 @@ The portal provides a responsive self-service interface where users can:
 - view deployment history and monitoring information.
 
 <img width="1912" alt="image" src="https://github.com/user-attachments/assets/e1523a40-695d-4487-8e3e-621f164bb56b" />
-<img width="1918" alt="image" src="https://github.com/user-attachments/assets/f55c159f-1d19-4f53-a5bb-ab8b53c0a378" />
+<img width="1919" alt="image" src="https://github.com/user-attachments/assets/a8561bac-a5c0-424f-ac30-37717feaf357" />
+
 
 
 
