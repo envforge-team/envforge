@@ -80,3 +80,9 @@ La finalul proiectului vom putea demonstra un flux complet:
 * este eliminat automat la expirare sau manual la cerere.
 
 Proiectul este gândit astfel încât fiecare membru al echipei să contribuie atât la partea de dezvoltare software, cât și la partea de infrastructură, Kubernetes, Terraform, CI/CD și monitorizare, pentru ca responsabilitățile și experiența dobândită să fie distribuite cât mai echilibrat.
+
+
+## Documentație operațională
+
+* [Create an Environment](docs/create-an-environment.md)
+* [Provisioning Troubleshooting](docs/provisioning-troubleshooting.md)
