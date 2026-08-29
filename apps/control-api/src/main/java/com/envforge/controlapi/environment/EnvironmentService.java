@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.envforge.controlapi.provisioning.EnvironmentRequestedEvent;
+import com.envforge.controlapi.security.CurrentUser;
+import com.envforge.controlapi.security.CurrentUserProvider;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -17,14 +19,17 @@ public class EnvironmentService {
 
     private final EnvironmentRepository environmentRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final CurrentUserProvider currentUserProvider;
     private final Clock clock;
 
     public EnvironmentService(
         EnvironmentRepository environmentRepository,
-        ApplicationEventPublisher eventPublisher
+        ApplicationEventPublisher eventPublisher,
+        CurrentUserProvider currentUserProvider
     ) {
         this.environmentRepository = environmentRepository;
         this.eventPublisher = eventPublisher;
+        this.currentUserProvider = currentUserProvider;
         this.clock = Clock.systemUTC();
     }
 
@@ -46,6 +51,9 @@ public class EnvironmentService {
             );
         }
 
+        CurrentUser currentUser =
+            currentUserProvider.getCurrentUser();
+
         Instant now = Instant.now(clock);
 
         Instant expiresAt = now.plus(
@@ -63,7 +71,7 @@ public class EnvironmentService {
             request.resourceProfile(),
             EnvironmentStatus.REQUESTED,
             request.monitoringEnabled(),
-            "local-user",
+            currentUser.id(),
             now,
             expiresAt,
             now

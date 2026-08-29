@@ -1,30 +1,27 @@
 package com.envforge.controlapi.common;
-import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import com.envforge.controlapi.environment.EnvironmentNotFoundException;
-import com.envforge.controlapi.environment
-    .EnvironmentAlreadyExistsException;
-import com.envforge.controlapi.security
-    .AccessDeniedException;
-import com.envforge.controlapi.user
-    .UserNotFoundException;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind
-    .MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-import com.envforge.controlapi.provisioning
-    .EnvironmentRetryNotAllowedException;
 
 import com.envforge.controlapi.deployment.ConcurrentRolloutException;
 import com.envforge.controlapi.deployment.DeploymentNotFoundException;
 import com.envforge.controlapi.deployment.InvalidVersionException;
+import com.envforge.controlapi.environment.EnvironmentAlreadyExistsException;
+import com.envforge.controlapi.environment.EnvironmentNotFoundException;
+import com.envforge.controlapi.lifecycle.LifecycleWorkerException;
+import com.envforge.controlapi.provisioning.EnvironmentRetryNotAllowedException;
+import com.envforge.controlapi.security.AccessDeniedException;
+import com.envforge.controlapi.user.UserNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
     @ExceptionHandler(EnvironmentAlreadyExistsException.class)
     public ResponseEntity<ApiError> handleDuplicate(
         EnvironmentAlreadyExistsException exception,
@@ -37,58 +34,58 @@ public class GlobalExceptionHandler {
             Map.of()
         );
     }
+
     @ExceptionHandler(EnvironmentNotFoundException.class)
-public ResponseEntity<ApiError> handleEnvironmentNotFound(
-    EnvironmentNotFoundException exception,
-    HttpServletRequest request
-) {
-    return buildResponse(
-        HttpStatus.NOT_FOUND,
-        exception.getMessage(),
-        request.getRequestURI(),
-        Map.of()
-    );
-}
+    public ResponseEntity<ApiError> handleEnvironmentNotFound(
+        EnvironmentNotFoundException exception,
+        HttpServletRequest request
+    ) {
+        return buildResponse(
+            HttpStatus.NOT_FOUND,
+            exception.getMessage(),
+            request.getRequestURI(),
+            Map.of()
+        );
+    }
 
+    @ExceptionHandler(DeploymentNotFoundException.class)
+    public ResponseEntity<ApiError> handleDeploymentNotFound(
+        DeploymentNotFoundException exception,
+        HttpServletRequest request
+    ) {
+        return buildResponse(
+            HttpStatus.NOT_FOUND,
+            exception.getMessage(),
+            request.getRequestURI(),
+            Map.of()
+        );
+    }
 
- @ExceptionHandler(DeploymentNotFoundException.class)
-public ResponseEntity<ApiError> handleDeploymentNotFound(
-    DeploymentNotFoundException exception,
-    HttpServletRequest request
-) {
-    return buildResponse(
-        HttpStatus.NOT_FOUND,
-        exception.getMessage(),
-        request.getRequestURI(),
-        Map.of()
-    );
-}
+    @ExceptionHandler(InvalidVersionException.class)
+    public ResponseEntity<ApiError> handleInvalidVersion(
+        InvalidVersionException exception,
+        HttpServletRequest request
+    ) {
+        return buildResponse(
+            HttpStatus.BAD_REQUEST,
+            exception.getMessage(),
+            request.getRequestURI(),
+            Map.of()
+        );
+    }
 
-@ExceptionHandler(InvalidVersionException.class)
-public ResponseEntity<ApiError> handleInvalidVersion(
-    InvalidVersionException exception,
-    HttpServletRequest request
-) {
-    return buildResponse(
-        HttpStatus.BAD_REQUEST,
-        exception.getMessage(),
-        request.getRequestURI(),
-        Map.of()
-    );
-}
-
-@ExceptionHandler(ConcurrentRolloutException.class)
-public ResponseEntity<ApiError> handleConcurrentRollout(
-    ConcurrentRolloutException exception,
-    HttpServletRequest request
-) {
-    return buildResponse(
-        HttpStatus.CONFLICT,
-        exception.getMessage(),
-        request.getRequestURI(),
-        Map.of()
-    );
-}
+    @ExceptionHandler(ConcurrentRolloutException.class)
+    public ResponseEntity<ApiError> handleConcurrentRollout(
+        ConcurrentRolloutException exception,
+        HttpServletRequest request
+    ) {
+        return buildResponse(
+            HttpStatus.CONFLICT,
+            exception.getMessage(),
+            request.getRequestURI(),
+            Map.of()
+        );
+    }
 
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiError> handleUserNotFound(
@@ -102,6 +99,7 @@ public ResponseEntity<ApiError> handleConcurrentRollout(
             Map.of()
         );
     }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleAccessDenied(
         AccessDeniedException exception,
@@ -115,15 +113,33 @@ public ResponseEntity<ApiError> handleConcurrentRollout(
         );
     }
 
-    @ExceptionHandler(
-        EnvironmentRetryNotAllowedException.class
-    )
+    @ExceptionHandler(EnvironmentRetryNotAllowedException.class)
     public ResponseEntity<ApiError> handleRetryNotAllowed(
         EnvironmentRetryNotAllowedException exception,
         HttpServletRequest request
     ) {
         return buildResponse(
             HttpStatus.CONFLICT,
+            exception.getMessage(),
+            request.getRequestURI(),
+            Map.of()
+        );
+    }
+
+    @ExceptionHandler(LifecycleWorkerException.class)
+    public ResponseEntity<ApiError> handleLifecycleWorker(
+        LifecycleWorkerException exception,
+        HttpServletRequest request
+    ) {
+        HttpStatus status = switch (exception.getStatusCode()) {
+            case 400 -> HttpStatus.BAD_REQUEST;
+            case 404 -> HttpStatus.NOT_FOUND;
+            case 409 -> HttpStatus.CONFLICT;
+            default -> HttpStatus.BAD_GATEWAY;
+        };
+
+        return buildResponse(
+            status,
             exception.getMessage(),
             request.getRequestURI(),
             Map.of()
@@ -137,6 +153,7 @@ public ResponseEntity<ApiError> handleConcurrentRollout(
     ) {
         Map<String, String> validationErrors =
             new LinkedHashMap<>();
+
         exception.getBindingResult()
             .getFieldErrors()
             .forEach(error ->
@@ -145,6 +162,7 @@ public ResponseEntity<ApiError> handleConcurrentRollout(
                     error.getDefaultMessage()
                 )
             );
+
         return buildResponse(
             HttpStatus.BAD_REQUEST,
             "Request validation failed",
@@ -152,6 +170,7 @@ public ResponseEntity<ApiError> handleConcurrentRollout(
             validationErrors
         );
     }
+
     private ResponseEntity<ApiError> buildResponse(
         HttpStatus status,
         String message,
@@ -166,6 +185,7 @@ public ResponseEntity<ApiError> handleConcurrentRollout(
             Instant.now(),
             validationErrors
         );
+
         return ResponseEntity
             .status(status)
             .body(error);

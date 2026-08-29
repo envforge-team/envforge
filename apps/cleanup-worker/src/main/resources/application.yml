@@ -42,5 +42,6 @@ envforge:
     batch-size: 10
     command-timeout-seconds: 300
     kube-context: ${ENVFORGE_KUBE_CONTEXT:kind-envforge}
+    internal-token: ${ENVFORGE_LIFECYCLE_INTERNAL_TOKEN:local-dev-internal-token}
     runner:
       mode: ${ENVFORGE_LIFECYCLE_RUNNER_MODE:dry-run}

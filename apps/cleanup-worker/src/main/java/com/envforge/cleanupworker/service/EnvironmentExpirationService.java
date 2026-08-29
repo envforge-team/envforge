@@ -53,7 +53,7 @@ public class EnvironmentExpirationService {
                         environment.getId(),
                         LifecycleAction.EXPIRE,
                         null,
-                        "cleanup-worker",
+                        "SYSTEM",
                         environment.getNamespace(),
                         environment.getName()
                 );

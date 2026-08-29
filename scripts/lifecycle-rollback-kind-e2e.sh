@@ -7,9 +7,18 @@ ROOT_DIR="$(
 )"
 
 API_URL="${ENVFORGE_API_URL:-http://localhost:8080}"
-WORKER_URL="${ENVFORGE_WORKER_URL:-http://localhost:8081}"
-KUBE_CONTEXT="${ENVFORGE_KUBE_CONTEXT:-kind-envforge}"
+ADMIN_CONTEXT="${ENVFORGE_ADMIN_KUBE_CONTEXT:-kind-envforge}"
 IMAGE_VERSION="${ENVFORGE_IMAGE_VERSION:-0.2.0}"
+
+OWNER_ID="${ENVFORGE_E2E_OWNER_ID:-rollback-owner}"
+OWNER_EMAIL="${ENVFORGE_E2E_OWNER_EMAIL:-rollback-owner@example.test}"
+OWNER_ROLE="${ENVFORGE_E2E_OWNER_ROLE:-OPERATOR}"
+
+auth_headers=(
+  -H "X-Debug-User-Id: ${OWNER_ID}"
+  -H "X-Debug-User-Email: ${OWNER_EMAIL}"
+  -H "X-Debug-User-Role: ${OWNER_ROLE}"
+)
 
 name="lifecycle-rollback-$(date +%s)"
 
@@ -20,6 +29,7 @@ response="$(
     --show-error \
     --request POST \
     --header "Content-Type: application/json" \
+    "${auth_headers[@]}" \
     --data "{
       \"name\": \"${name}\",
       \"template\": \"STATIC_WEB\",
@@ -32,16 +42,24 @@ response="$(
     "${API_URL}/api/environments"
 )"
 
-environment_id="$(printf '%s' "$response" | jq -r '.id')"
-namespace_name="$(printf '%s' "$response" | jq -r '.namespace')"
+environment_id="$(
+  printf '%s' "$response" | jq -r '.id'
+)"
+
+namespace_name="$(
+  printf '%s' "$response" | jq -r '.namespace'
+)"
 
 echo "Waiting for initial deployment..."
+
+status=""
 
 for attempt in $(seq 1 40); do
   status="$(
     curl \
       --fail \
       --silent \
+      "${auth_headers[@]}" \
       "${API_URL}/api/environments/${environment_id}" \
     | jq -r '.status'
   )"
@@ -70,7 +88,7 @@ echo "Creating Helm revision 2..."
 helm upgrade \
   "$name" \
   "$ROOT_DIR/deployment/helm/envforge-workload" \
-  --kube-context "$KUBE_CONTEXT" \
+  --kube-context "$ADMIN_CONTEXT" \
   --namespace "$namespace_name" \
   --reuse-values \
   --set workload.replicas=2 \
@@ -80,7 +98,7 @@ helm upgrade \
 revision_count="$(
   helm history \
     "$name" \
-    --kube-context "$KUBE_CONTEXT" \
+    --kube-context "$ADMIN_CONTEXT" \
     --namespace "$namespace_name" \
     --output json \
   | jq 'length'
@@ -91,7 +109,7 @@ if [[ "$revision_count" -lt 2 ]]; then
   exit 1
 fi
 
-echo "Requesting rollback to revision 1..."
+echo "Requesting rollback through Control API..."
 
 curl \
   --fail-with-body \
@@ -99,41 +117,50 @@ curl \
   --show-error \
   --request POST \
   --header "Content-Type: application/json" \
-  --data "{
-    \"environmentId\": \"${environment_id}\",
-    \"action\": \"ROLLBACK\",
-    \"targetRevision\": 1,
-    \"actorId\": \"kind-rollback-e2e\",
-    \"namespaceName\": \"${namespace_name}\",
-    \"helmReleaseName\": \"${name}\"
-  }" \
-  "${WORKER_URL}/internal/lifecycle/jobs" \
-  | jq .
+  "${auth_headers[@]}" \
+  --data '{
+    "targetRevision": 1
+  }' \
+  "${API_URL}/api/environments/${environment_id}/rollback" \
+| jq .
 
 echo "Waiting for rollback revision..."
+
+latest_revision=0
+latest_status=""
 
 for attempt in $(seq 1 40); do
   history="$(
     helm history \
       "$name" \
-      --kube-context "$KUBE_CONTEXT" \
+      --kube-context "$ADMIN_CONTEXT" \
       --namespace "$namespace_name" \
       --output json
   )"
 
-  latest_revision="$(printf '%s' "$history" | jq '.[-1].revision')"
-  latest_status="$(printf '%s' "$history" | jq -r '.[-1].status')"
+  latest_revision="$(
+    printf '%s' "$history" \
+    | jq '.[-1].revision'
+  )"
 
-  echo "ROLLBACK wait ${attempt}/40: revision=${latest_revision} status=${latest_status}"
+  latest_status="$(
+    printf '%s' "$history" \
+    | jq -r '.[-1].status'
+  )"
 
-  if [[ "$latest_revision" -ge 3 && "$latest_status" == "deployed" ]]; then
+  echo \
+    "ROLLBACK wait ${attempt}/40: revision=${latest_revision} status=${latest_status}"
+
+  if [[ "$latest_revision" -ge 3
+        && "$latest_status" == "deployed" ]]; then
     break
   fi
 
   sleep 3
 done
 
-if [[ "$latest_revision" -lt 3 || "$latest_status" != "deployed" ]]; then
+if [[ "$latest_revision" -lt 3
+      || "$latest_status" != "deployed" ]]; then
   echo "ERROR: rollback was not observed."
   exit 1
 fi
@@ -142,12 +169,38 @@ environment_status="$(
   curl \
     --fail \
     --silent \
+    "${auth_headers[@]}" \
     "${API_URL}/api/environments/${environment_id}" \
   | jq -r '.status'
 )"
 
 if [[ "$environment_status" != "READY" ]]; then
-  echo "ERROR: expected READY after rollback, got ${environment_status}."
+  echo \
+    "ERROR: expected READY after rollback, got ${environment_status}."
+  exit 1
+fi
+
+rollback_actor="$(
+  (
+    cd "$ROOT_DIR"
+    docker compose exec -T postgres \
+      psql \
+      -U envforge \
+      -d envforge \
+      -At \
+      -v ON_ERROR_STOP=1 \
+      -c "SELECT actor_id
+          FROM lifecycle_audit
+          WHERE environment_id = '${environment_id}'
+            AND action = 'ROLLBACK'
+          ORDER BY created_at DESC
+          LIMIT 1;"
+  )
+)"
+
+if [[ "$rollback_actor" != "$OWNER_EMAIL" ]]; then
+  echo \
+    "ERROR: ROLLBACK actor should be ${OWNER_EMAIL}, got ${rollback_actor}"
   exit 1
 fi
 
@@ -156,3 +209,4 @@ echo "Rollback Kind end-to-end validation passed."
 echo "Environment ID: ${environment_id}"
 echo "Release:        ${name}"
 echo "Namespace:      ${namespace_name}"
+echo "Actor:          ${rollback_actor}"

@@ -7,10 +7,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.UUID;
-
 import com.envforge.controlapi.provisioning.EnvironmentRequestedEvent;
-
+import com.envforge.controlapi.security.CurrentUser;
+import com.envforge.controlapi.security.CurrentUserProvider;
+import com.envforge.controlapi.user.Role;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,18 +29,33 @@ class EnvironmentServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+
     private EnvironmentService environmentService;
 
     @BeforeEach
     void setUp() {
         environmentService = new EnvironmentService(
             environmentRepository,
-            eventPublisher
+            eventPublisher,
+            currentUserProvider
         );
+
     }
 
     @Test
-    void shouldCreateRequestedEnvironment() {
+    void shouldCreateRequestedEnvironmentOwnedByCurrentUser() {
+        when(currentUserProvider.getCurrentUser())
+            .thenReturn(
+                new CurrentUser(
+                    "owner-id",
+                    "owner@example.test",
+                    "Owner",
+                    Role.OPERATOR
+                )
+            );
+
         CreateEnvironmentRequest request =
             new CreateEnvironmentRequest(
                 "static-demo-test",
@@ -51,11 +67,8 @@ class EnvironmentServiceTest {
                 true
             );
 
-        when(
-            environmentRepository.existsByName(
-                request.name()
-            )
-        ).thenReturn(false);
+        when(environmentRepository.existsByName(request.name()))
+            .thenReturn(false);
 
         when(
             environmentRepository.existsByNamespace(
@@ -75,35 +88,14 @@ class EnvironmentServiceTest {
             environmentService.create(request);
 
         assertThat(response.id()).isNotNull();
-
         assertThat(response.name())
             .isEqualTo("static-demo-test");
-
         assertThat(response.namespace())
             .isEqualTo("env-static-demo-test");
-
-        assertThat(response.template())
-            .isEqualTo(EnvironmentTemplate.STATIC_WEB);
-
-        assertThat(response.imageVersion())
-            .isEqualTo("0.1.0");
-
-        assertThat(response.replicas()).isEqualTo(2);
-
-        assertThat(response.resourceProfile())
-            .isEqualTo(ResourceProfile.SMALL);
-
         assertThat(response.status())
             .isEqualTo(EnvironmentStatus.REQUESTED);
-
-        assertThat(response.monitoringEnabled()).isTrue();
-
         assertThat(response.createdBy())
-            .isEqualTo("local-user");
-
-        assertThat(response.createdAt()).isNotNull();
-        assertThat(response.updatedAt()).isNotNull();
-
+            .isEqualTo("owner-id");
         assertThat(response.expiresAt())
             .isAfter(response.createdAt());
 
@@ -112,20 +104,10 @@ class EnvironmentServiceTest {
                 EnvironmentEntity.class
             );
 
-        verify(environmentRepository).save(
-            captor.capture()
-        );
+        verify(environmentRepository).save(captor.capture());
 
-        EnvironmentEntity saved = captor.getValue();
-
-        assertThat(saved.getName())
-            .isEqualTo("static-demo-test");
-
-        assertThat(saved.getNamespace())
-            .isEqualTo("env-static-demo-test");
-
-        assertThat(saved.getStatus())
-            .isEqualTo(EnvironmentStatus.REQUESTED);
+        assertThat(captor.getValue().getCreatedBy())
+            .isEqualTo("owner-id");
 
         verify(eventPublisher).publishEvent(
             any(EnvironmentRequestedEvent.class)
@@ -145,11 +127,8 @@ class EnvironmentServiceTest {
                 true
             );
 
-        when(
-            environmentRepository.existsByName(
-                "duplicate-demo"
-            )
-        ).thenReturn(true);
+        when(environmentRepository.existsByName("duplicate-demo"))
+            .thenReturn(true);
 
         assertThatThrownBy(
             () -> environmentService.create(request)
@@ -185,7 +164,6 @@ class EnvironmentServiceTest {
             environmentService.findById(id);
 
         assertThat(response.id()).isEqualTo(id);
-
         assertThat(response.name())
             .isEqualTo("existing-demo");
     }

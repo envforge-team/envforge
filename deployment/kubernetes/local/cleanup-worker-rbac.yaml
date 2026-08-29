@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: envforge-cleanup-worker
+  namespace: envforge-system
+  labels:
+    app.kubernetes.io/name: envforge-cleanup-worker
+    app.kubernetes.io/part-of: envforge
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: envforge-cleanup-worker
+  labels:
+    app.kubernetes.io/name: envforge-cleanup-worker
+    app.kubernetes.io/part-of: envforge
+rules:
+  - apiGroups: [""]
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+      - delete
+
+  - apiGroups: [""]
+    resources:
+      - services
+      - secrets
+      - configmaps
+      - resourcequotas
+      - limitranges
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: envforge-cleanup-worker
+  labels:
+    app.kubernetes.io/name: envforge-cleanup-worker
+    app.kubernetes.io/part-of: envforge
+subjects:
+  - kind: ServiceAccount
+    name: envforge-cleanup-worker
+    namespace: envforge-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: envforge-cleanup-worker

@@ -6,7 +6,8 @@ ROOT_DIR="$(
   pwd
 )"
 
-KIND_CONTEXT="${ENVFORGE_KUBE_CONTEXT:-kind-envforge}"
+KIND_CONTEXT="${ENVFORGE_KUBE_CONTEXT:-kind-envforge-cleanup-worker}"
+INTERNAL_TOKEN="${ENVFORGE_LIFECYCLE_INTERNAL_TOKEN:-local-dev-internal-token}"
 
 required_commands=(
   docker
@@ -22,17 +23,17 @@ for command_name in "${required_commands[@]}"; do
   fi
 done
 
-current_context="$(kubectl config current-context)"
-
-if [[ "$current_context" != "$KIND_CONTEXT" ]]; then
-  echo "Switching Kubernetes context to ${KIND_CONTEXT}"
-  kubectl config use-context "$KIND_CONTEXT"
+if ! kubectl \
+    --context "$KIND_CONTEXT" \
+    get --raw=/version >/dev/null 2>&1; then
+  echo "ERROR: Kubernetes context is not usable: ${KIND_CONTEXT}"
+  echo "Run: ./scripts/kind-configure-cleanup-worker-rbac.sh"
+  exit 1
 fi
 
 cd "$ROOT_DIR"
 
 echo "Starting local PostgreSQL if necessary..."
-
 docker compose up -d postgres
 
 echo "Waiting for PostgreSQL..."
@@ -65,8 +66,9 @@ echo
 ENVFORGE_LIFECYCLE_RUNNER_MODE=real \
 ENVFORGE_LIFECYCLE_SCHEDULER_ENABLED=true \
 ENVFORGE_LIFECYCLE_SCHEDULER_DELAY_MILLISECONDS=10000 \
+ENVFORGE_LIFECYCLE_INTERNAL_TOKEN="$INTERNAL_TOKEN" \
 ENVFORGE_KUBE_CONTEXT="$KIND_CONTEXT" \
-DB_URL="${DB_URL:-jdbc:postgresql://localhost:5432/envforge}" \
+DB_URL="${DB_URL:-jdbc:postgresql://127.0.0.1:5432/envforge}" \
 DB_USERNAME="${DB_USERNAME:-envforge}" \
 DB_PASSWORD="${DB_PASSWORD:-envforge-local-password}" \
 mvn spring-boot:run
