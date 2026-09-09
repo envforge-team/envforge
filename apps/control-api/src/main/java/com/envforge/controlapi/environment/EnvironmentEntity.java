@@ -170,4 +170,12 @@ public class EnvironmentEntity {
         this.status = Objects.requireNonNull(newStatus);
         this.updatedAt = Objects.requireNonNull(changedAt);
     }
+
+    public void changeImageVersion(
+        String newVersion,
+        Instant changedAt
+    ) {
+        this.imageVersion = Objects.requireNonNull(newVersion);
+        this.updatedAt = Objects.requireNonNull(changedAt);
+    }
 }
