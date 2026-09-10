@@ -6,10 +6,12 @@ on:
       - main
     paths:
       - "apps/control-api/**"
+      - "deployment/helm/envforge-workload/**"
       - ".github/workflows/control-api-image.yml"
   pull_request:
     paths:
       - "apps/control-api/**"
+      - "deployment/helm/envforge-workload/**"
       - ".github/workflows/control-api-image.yml"
 
 jobs:
@@ -29,8 +31,9 @@ jobs:
       - name: Build image
         run: |
           docker build \
+            -f apps/control-api/Dockerfile \
             -t envforge/control-api:${{ steps.image.outputs.tag }} \
-            ./apps/control-api
+            .
 
       - name: Verify image
         run: |
