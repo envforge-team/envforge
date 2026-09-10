@@ -1,0 +1,177 @@
+name: Reliability Demo API Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/reliability-demo-api/**"
+      - "deployment/helm/reliability-demo-api/**"
+      - ".github/workflows/reliability-demo-api-image.yml"
+  pull_request:
+    paths:
+      - "apps/reliability-demo-api/**"
+      - "deployment/helm/reliability-demo-api/**"
+      - ".github/workflows/reliability-demo-api-image.yml"
+  workflow_dispatch:
+
+jobs:
+  build-and-validate:
+    name: Build and validate Reliability Demo API
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_REPOSITORY: envforge/reliability-demo-api
+      KIND_CLUSTER_NAME: envforge-m2-ci
+      NAMESPACE: env-reliability-demo
+      RELEASE_NAME: reliability-demo-api
+      CHART_PATH: deployment/helm/reliability-demo-api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set immutable image tag
+        id: image
+        shell: bash
+        run: |
+          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Reliability Demo API image
+        shell: bash
+        run: |
+          docker build \
+            --build-arg APP_VERSION="${{ steps.image.outputs.tag }}" \
+            -t "${IMAGE_REPOSITORY}:${{ steps.image.outputs.tag }}" \
+            apps/reliability-demo-api
+
+      - name: Verify image exists
+        shell: bash
+        run: |
+          docker image inspect \
+            "${IMAGE_REPOSITORY}:${{ steps.image.outputs.tag }}"
+
+      - name: Install Kind
+        shell: bash
+        run: |
+          go install sigs.k8s.io/kind@v0.32.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Create temporary Kind cluster
+        shell: bash
+        run: |
+          "$(go env GOPATH)/bin/kind" create cluster \
+            --name "${KIND_CLUSTER_NAME}"
+
+      - name: Load image into Kind
+        shell: bash
+        run: |
+          kind load docker-image \
+            "${IMAGE_REPOSITORY}:${{ steps.image.outputs.tag }}" \
+            --name "${KIND_CLUSTER_NAME}"
+
+      - name: Helm lint
+        shell: bash
+        run: |
+          helm lint "${CHART_PATH}"
+
+      - name: Deploy image with Helm
+        shell: bash
+        run: |
+          helm upgrade --install \
+            "${RELEASE_NAME}" \
+            "${CHART_PATH}" \
+            --namespace "${NAMESPACE}" \
+            --create-namespace \
+            --set-string image.repository="${IMAGE_REPOSITORY}" \
+            --set-string image.tag="${{ steps.image.outputs.tag }}" \
+            --set-string image.pullPolicy=IfNotPresent \
+            --wait \
+            --timeout 4m
+
+      - name: Verify rollout
+        shell: bash
+        run: |
+          kubectl rollout status \
+            deployment/"${RELEASE_NAME}" \
+            --namespace "${NAMESPACE}" \
+            --timeout=180s
+
+      - name: Verify deployed image
+        shell: bash
+        run: |
+          ACTUAL_IMAGE="$(
+            kubectl get deployment \
+              "${RELEASE_NAME}" \
+              --namespace "${NAMESPACE}" \
+              -o jsonpath='{.spec.template.spec.containers[0].image}'
+          )"
+
+          EXPECTED_IMAGE="${IMAGE_REPOSITORY}:${{ steps.image.outputs.tag }}"
+
+          echo "Expected: ${EXPECTED_IMAGE}"
+          echo "Actual:   ${ACTUAL_IMAGE}"
+
+          test "${ACTUAL_IMAGE}" = "${EXPECTED_IMAGE}"
+
+      - name: Verify version endpoint
+        shell: bash
+        run: |
+          kubectl port-forward \
+            --namespace "${NAMESPACE}" \
+            svc/"${RELEASE_NAME}" \
+            18080:80 \
+            >/tmp/reliability-demo-port-forward.log 2>&1 &
+
+          PORT_FORWARD_PID=$!
+
+          cleanup() {
+            kill "${PORT_FORWARD_PID}" 2>/dev/null || true
+          }
+
+          trap cleanup EXIT
+
+          for i in $(seq 1 30); do
+            if curl -fsS \
+              http://127.0.0.1:18080/version \
+              >/tmp/version.json; then
+              break
+            fi
+
+            sleep 2
+          done
+
+          cat /tmp/version.json
+
+          python3 - <<'PY'
+          import json
+
+          with open("/tmp/version.json") as file:
+              payload = json.load(file)
+
+          expected = "${{ steps.image.outputs.tag }}"
+          actual = payload["version"]
+
+          if actual != expected:
+              raise SystemExit(
+                  f"Version mismatch: expected {expected}, got {actual}"
+              )
+
+          print(f"PASS: deployed version is {actual}")
+          PY
+
+      - name: Show deployment state on failure
+        if: failure()
+        shell: bash
+        run: |
+          kubectl get all \
+            --namespace "${NAMESPACE}" \
+            -o wide || true
+
+          kubectl describe deployment \
+            "${RELEASE_NAME}" \
+            --namespace "${NAMESPACE}" || true
+
+          kubectl get events \
+            --namespace "${NAMESPACE}" \
+            --sort-by=.lastTimestamp || true
