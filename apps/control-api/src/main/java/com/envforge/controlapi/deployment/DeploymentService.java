@@ -19,15 +19,18 @@ public class DeploymentService {
     private final DeploymentRepository deploymentRepository;
     private final EnvironmentRepository environmentRepository;
     private final DeploymentExecutor deploymentExecutor;
+    private final DeploymentMetrics deploymentMetrics;
 
     public DeploymentService(
         DeploymentRepository deploymentRepository,
         EnvironmentRepository environmentRepository,
-        DeploymentExecutor deploymentExecutor
+        DeploymentExecutor deploymentExecutor,
+        DeploymentMetrics deploymentMetrics
     ) {
         this.deploymentRepository = deploymentRepository;
         this.environmentRepository = environmentRepository;
         this.deploymentExecutor = deploymentExecutor;
+        this.deploymentMetrics = deploymentMetrics;
     }
 
     @Transactional
@@ -137,6 +140,12 @@ public class DeploymentService {
                 finishedAt
             );
         }
+
+        deploymentMetrics.record(
+            deployment.getStatus(),
+            startedAt,
+            deployment.getFinishedAt()
+        );
 
         deploymentRepository.save(deployment);
         environmentRepository.save(environment);

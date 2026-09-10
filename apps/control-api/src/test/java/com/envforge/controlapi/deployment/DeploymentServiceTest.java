@@ -38,6 +38,9 @@ class DeploymentServiceTest {
     @Mock
     private DeploymentExecutor deploymentExecutor;
 
+    @Mock
+    private DeploymentMetrics deploymentMetrics;
+
     private DeploymentService deploymentService;
 
     private EnvironmentEntity environment;
@@ -48,7 +51,8 @@ class DeploymentServiceTest {
         deploymentService = new DeploymentService(
             deploymentRepository,
             environmentRepository,
-            deploymentExecutor
+            deploymentExecutor,
+            deploymentMetrics
         );
 
         environmentId = UUID.randomUUID();
@@ -128,6 +132,13 @@ class DeploymentServiceTest {
                 environment,
                 "1.4.0"
             );
+
+        verify(deploymentMetrics)
+            .record(
+                DeploymentStatus.SUCCESS,
+                response.startedAt(),
+                response.finishedAt()
+            );
     }
 
     @Test
@@ -178,6 +189,13 @@ class DeploymentServiceTest {
         ).isEqualTo(
             EnvironmentStatus.FAILED
         );
+
+        verify(deploymentMetrics)
+            .record(
+                DeploymentStatus.FAILED,
+                response.startedAt(),
+                response.finishedAt()
+            );
     }
 
     @Test
