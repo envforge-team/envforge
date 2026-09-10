@@ -1,3 +1,6 @@
+namespace:
+  create: true
+
 environmentName: reliability-demo
 owner: raoul
 template: reliability-api

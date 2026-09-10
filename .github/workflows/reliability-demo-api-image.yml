@@ -83,6 +83,7 @@ jobs:
             "${CHART_PATH}" \
             --namespace "${NAMESPACE}" \
             --create-namespace \
+            --set namespace.create=false \
             --set-string image.repository="${IMAGE_REPOSITORY}" \
             --set-string image.tag="${{ steps.image.outputs.tag }}" \
             --set-string image.pullPolicy=IfNotPresent \
