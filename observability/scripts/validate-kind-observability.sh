@@ -568,6 +568,70 @@ fi
 ok "Prometheus loaded all 4 reliability alert rules and they are healthy"
 
 echo
+echo "=== Prometheus deployment alert ==="
+
+DEPLOYMENT_ALERT_READY=""
+
+for ATTEMPT in $(seq 1 18); do
+  DEPLOYMENT_ALERT_RULES="$(
+    curl -fsS \
+      "http://localhost:${PROM_PORT}/api/v1/rules?type=alert"
+  )"
+
+  DEPLOYMENT_ALERT_STATUS="$(
+    printf '%s' "${DEPLOYMENT_ALERT_RULES}" |
+    python3 -c '
+import json
+import sys
+
+wanted = "EnvForgeDeploymentRolloutFailed"
+
+data = json.load(sys.stdin)
+
+found = None
+
+for group in data["data"]["groups"]:
+    for rule in group.get("rules", []):
+        if rule.get("name") == wanted:
+            found = rule
+            break
+
+    if found is not None:
+        break
+
+if found is None:
+    print("missing")
+elif found.get("health") != "ok":
+    print(
+        "health="
+        + str(found.get("health"))
+    )
+else:
+    print("ready")
+'
+  )"
+
+  if [ "${DEPLOYMENT_ALERT_STATUS}" = "ready" ]; then
+    DEPLOYMENT_ALERT_READY="ready"
+    break
+  fi
+
+  echo \
+    "Deployment alert not healthy yet: " \
+    "${DEPLOYMENT_ALERT_STATUS:-unknown} " \
+    "(attempt ${ATTEMPT}/18); waiting 5s..."
+
+  sleep 5
+done
+
+if [ "${DEPLOYMENT_ALERT_READY}" != "ready" ]; then
+  fail \
+    "Deployment rollout alert did not become healthy after 90 seconds"
+fi
+
+ok "Prometheus deployment rollout alert is loaded and healthy"
+
+echo
 echo "=== Loki validation ==="
 
 LOKI_RESULT="$(
@@ -708,6 +772,95 @@ print(
     f"with all {len(required_titles)} required panels"
 )
 '
+
+echo
+echo "=== Grafana deployment health dashboard ==="
+
+DEPLOYMENT_DASHBOARD_READY=""
+
+for ATTEMPT in $(seq 1 18); do
+  HTTP_CODE="$(
+    curl \
+      --silent \
+      --output /tmp/envforge-deployment-dashboard.json \
+      --write-out '%{http_code}' \
+      -u "admin:${GRAFANA_PASSWORD}" \
+      "http://localhost:${GRAFANA_PORT}/api/dashboards/uid/envforge-deployment-health"
+  )"
+
+  if [ "${HTTP_CODE}" = "200" ]; then
+    DEPLOYMENT_DASHBOARD_READY="ready"
+    break
+  fi
+
+  echo \
+    "Deployment Health dashboard not ready yet " \
+    "(HTTP ${HTTP_CODE}, attempt ${ATTEMPT}/18); waiting 5s..."
+
+  sleep 5
+done
+
+if [ "${DEPLOYMENT_DASHBOARD_READY}" != "ready" ]; then
+  fail \
+    "Deployment Health dashboard was not loaded after 90 seconds"
+fi
+
+python3 - <<'PYTHON'
+import json
+
+with open(
+    "/tmp/envforge-deployment-dashboard.json",
+    encoding="utf-8",
+) as file:
+    data = json.load(file)
+
+dashboard = data["dashboard"]
+
+if dashboard.get("uid") != "envforge-deployment-health":
+    raise SystemExit(
+        "Deployment Health dashboard UID is invalid"
+    )
+
+if dashboard.get("title") != "EnvForge Deployment Health":
+    raise SystemExit(
+        "Deployment Health dashboard title is invalid"
+    )
+
+panels = dashboard.get("panels", [])
+
+required_titles = {
+    "Successful deployments",
+    "Failed deployments",
+    "Deployment success rate",
+    "Average deployment duration",
+    "Deployment results per 5 minutes",
+    "Average deployment duration by result",
+    "Deployment health over time",
+}
+
+titles = {
+    panel.get("title")
+    for panel in panels
+}
+
+missing = required_titles - titles
+
+if missing:
+    raise SystemExit(
+        "Missing Deployment Health panel(s): "
+        + ", ".join(sorted(missing))
+    )
+
+if len(panels) != 7:
+    raise SystemExit(
+        f"Expected 7 deployment panels, got {len(panels)}"
+    )
+
+print(
+    "[OK] Grafana Deployment Health dashboard "
+    "loaded with all 7 required panels"
+)
+PYTHON
 
 echo
 echo "======================================"
