@@ -21,6 +21,7 @@ jobs:
       ENV_NAMESPACE: env-m2-update-ci
       INITIAL_VERSION: "0.2.0"
       TARGET_VERSION: ${{ inputs.version }}
+      EXPECTED_TRIGGERED_BY: dev@envforge.local
       IMAGE_REPOSITORY: envforge/static-web-demo
       WORKLOAD_CHART_PATH: deployment/helm/envforge-workload
 
@@ -310,10 +311,14 @@ jobs:
 
           assert deployment["requestedVersion"] == os.environ["TARGET_VERSION"], deployment
           assert deployment["status"] == "SUCCESS", deployment
+          assert deployment["triggeredBy"] == os.environ["EXPECTED_TRIGGERED_BY"], deployment
           assert deployment["failureReason"] is None, deployment
           assert deployment["finishedAt"] is not None, deployment
 
-          print("PASS: PATCH returned SUCCESS")
+          print(
+              "PASS: PATCH returned SUCCESS for actor "
+              + deployment["triggeredBy"]
+          )
           PY
 
       - name: Verify Kubernetes rollout
@@ -396,14 +401,22 @@ jobs:
               if deployment["requestedVersion"]
               == os.environ["TARGET_VERSION"]
               and deployment["status"] == "SUCCESS"
+              and deployment["triggeredBy"]
+              == os.environ["EXPECTED_TRIGGERED_BY"]
           ]
 
           if not matching:
               raise SystemExit(
-                  "No successful deployment history entry found"
+                  "No successful deployment history entry found "
+                  "for authenticated actor "
+                  + os.environ["EXPECTED_TRIGGERED_BY"]
               )
 
-          print("PASS: deployment history contains successful update")
+          print(
+              "PASS: deployment history contains successful update "
+              "for actor "
+              + matching[0]["triggeredBy"]
+          )
           PY
 
           helm \

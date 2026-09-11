@@ -6,6 +6,9 @@ import com.envforge.controlapi.environment.EnvironmentRepository;
 import com.envforge.controlapi.environment.EnvironmentStatus;
 import com.envforge.controlapi.environment.EnvironmentTemplate;
 import com.envforge.controlapi.environment.ResourceProfile;
+import com.envforge.controlapi.security.CurrentUser;
+import com.envforge.controlapi.security.CurrentUserProvider;
+import com.envforge.controlapi.user.Role;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +44,9 @@ class DeploymentServiceTest {
     @Mock
     private DeploymentMetrics deploymentMetrics;
 
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+
     private DeploymentService deploymentService;
 
     private EnvironmentEntity environment;
@@ -52,7 +58,8 @@ class DeploymentServiceTest {
             deploymentRepository,
             environmentRepository,
             deploymentExecutor,
-            deploymentMetrics
+            deploymentMetrics,
+            currentUserProvider
         );
 
         environmentId = UUID.randomUUID();
@@ -111,6 +118,12 @@ class DeploymentServiceTest {
             response.status()
         ).isEqualTo(
             DeploymentStatus.SUCCESS
+        );
+
+        assertThat(
+            response.triggeredBy()
+        ).isEqualTo(
+            "operator@envforge.local"
         );
 
         assertThat(
@@ -173,6 +186,12 @@ class DeploymentServiceTest {
         assertThat(
             response.finishedAt()
         ).isNotNull();
+
+        assertThat(
+            response.triggeredBy()
+        ).isEqualTo(
+            "operator@envforge.local"
+        );
 
         assertThat(
             response.failureReason()
@@ -308,6 +327,17 @@ class DeploymentServiceTest {
     }
 
     private void prepareEnvironment() {
+        when(
+            currentUserProvider.getCurrentUser()
+        ).thenReturn(
+            new CurrentUser(
+                "operator-1",
+                "operator@envforge.local",
+                "EnvForge Operator",
+                Role.OPERATOR
+            )
+        );
+
         when(
             environmentRepository.findById(
                 environmentId

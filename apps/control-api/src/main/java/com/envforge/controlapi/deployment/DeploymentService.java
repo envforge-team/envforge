@@ -5,6 +5,7 @@ import com.envforge.controlapi.environment.EnvironmentNotFoundException;
 import com.envforge.controlapi.environment.EnvironmentRepository;
 import com.envforge.controlapi.environment.EnvironmentStatus;
 import com.envforge.controlapi.environment.EnvironmentTemplate;
+import com.envforge.controlapi.security.CurrentUserProvider;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,17 +21,20 @@ public class DeploymentService {
     private final EnvironmentRepository environmentRepository;
     private final DeploymentExecutor deploymentExecutor;
     private final DeploymentMetrics deploymentMetrics;
+    private final CurrentUserProvider currentUserProvider;
 
     public DeploymentService(
         DeploymentRepository deploymentRepository,
         EnvironmentRepository environmentRepository,
         DeploymentExecutor deploymentExecutor,
-        DeploymentMetrics deploymentMetrics
+        DeploymentMetrics deploymentMetrics,
+        CurrentUserProvider currentUserProvider
     ) {
         this.deploymentRepository = deploymentRepository;
         this.environmentRepository = environmentRepository;
         this.deploymentExecutor = deploymentExecutor;
         this.deploymentMetrics = deploymentMetrics;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @Transactional
@@ -82,8 +86,11 @@ public class DeploymentService {
         );
         deployment.setStatus(DeploymentStatus.PENDING);
 
-        // Replaced with the authenticated actor on Day 31.
-        deployment.setTriggeredBy("raoul");
+        deployment.setTriggeredBy(
+            currentUserProvider
+                .getCurrentUser()
+                .email()
+        );
 
         deployment.setStartedAt(startedAt);
 
