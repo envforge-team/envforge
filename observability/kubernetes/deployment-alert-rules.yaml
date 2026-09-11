@@ -1,0 +1,32 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: envforge-deployment-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: envforge-deployment-alerts
+    app.kubernetes.io/part-of: envforge
+spec:
+  groups:
+    - name: envforge.deployment
+      rules:
+        - alert: EnvForgeDeploymentRolloutFailed
+          expr: |
+            sum(
+              increase(
+                envforge_deployment_results_total{
+                  result="failed"
+                }[5m]
+              )
+            ) > 0
+          labels:
+            severity: warning
+            component: deployment
+            team: m2
+          annotations:
+            summary: "EnvForge deployment rollout failed"
+            description: >-
+              At least one EnvForge deployment failed during the
+              last 5 minutes. Check deployment history, Helm status,
+              Kubernetes events, image availability, and rollout
+              readiness.
