@@ -493,10 +493,11 @@ ALERTS_READY=""
 
 for ATTEMPT in $(seq 1 18); do
   ALERT_RULES="$(
-    curl -fsS       "http://localhost:${PROM_PORT}/api/v1/rules?type=alert"
+    curl -fsS \
+      "http://localhost:${PROM_PORT}/api/v1/rules?type=alert"
   )"
 
-  ALERTS_READY="$(
+  ALERT_STATUS="$(
     printf '%s' "${ALERT_RULES}" |
     python3 -c '
 import json
@@ -511,72 +512,60 @@ wanted = {
 
 data = json.load(sys.stdin)
 
-found = set()
-
+found = {}
 for group in data["data"]["groups"]:
     for rule in group.get("rules", []):
         name = rule.get("name")
-        if name in wanted:
-            found.add(name)
 
-if found == wanted:
+        if name in wanted:
+            found[name] = rule.get("health")
+
+missing = sorted(wanted - set(found))
+
+unhealthy = sorted(
+    f"{name}={health}"
+    for name, health in found.items()
+    if health != "ok"
+)
+
+if not missing and not unhealthy:
     print("ready")
+else:
+    parts = []
+
+    if missing:
+        parts.append(
+            "missing=" + ",".join(missing)
+        )
+
+    if unhealthy:
+        parts.append(
+            "health=" + ",".join(unhealthy)
+        )
+
+    print("; ".join(parts))
 '
   )"
 
-  if [ "${ALERTS_READY}" = "ready" ]; then
+  if [ "${ALERT_STATUS}" = "ready" ]; then
+    ALERTS_READY="ready"
     break
   fi
 
-  echo     "Reliability alert rules not ready yet "     "(attempt ${ATTEMPT}/18); waiting 5s..."
+  echo \
+    "Reliability alert rules not healthy yet: " \
+    "${ALERT_STATUS:-unknown} " \
+    "(attempt ${ATTEMPT}/18); waiting 5s..."
 
   sleep 5
 done
 
 if [ "${ALERTS_READY}" != "ready" ]; then
-  fail "Reliability alert rules were not loaded after 90 seconds"
+  fail \
+    "Reliability alert rules did not become healthy after 90 seconds"
 fi
 
-ok "Prometheus loaded all 4 reliability alert rules"
-
-printf '%s' "${ALERT_RULES}" |
-python3 -c '
-import json
-import sys
-
-wanted = {
-    "EnvForgeReliabilityTargetDown",
-    "EnvForgeReliabilityHigh5xxRatio",
-    "EnvForgeReliabilityHighLatency",
-    "EnvForgeReliabilityHighCpu",
-}
-
-data = json.load(sys.stdin)
-
-unhealthy = []
-
-for group in data["data"]["groups"]:
-    for rule in group.get("rules", []):
-        name = rule.get("name")
-
-        if name in wanted:
-            health = rule.get("health")
-
-            if health not in (None, "ok"):
-                unhealthy.append(
-                    f"{name}={health}"
-                )
-
-if unhealthy:
-    raise SystemExit(
-        "Unhealthy alert rule(s): "
-        + ", ".join(sorted(unhealthy))
-    )
-
-print(
-    "[OK] All 4 reliability alert rules are healthy"
-)
-'
+ok "Prometheus loaded all 4 reliability alert rules and they are healthy"
 
 echo
 echo "=== Loki validation ==="
