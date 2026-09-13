@@ -6,6 +6,7 @@ import com.envforge.controlapi.environment.EnvironmentRepository;
 import com.envforge.controlapi.environment.EnvironmentStatus;
 import com.envforge.controlapi.environment.EnvironmentTemplate;
 import com.envforge.controlapi.environment.ResourceProfile;
+import com.envforge.controlapi.security.AuthorizationService;
 import com.envforge.controlapi.security.CurrentUser;
 import com.envforge.controlapi.security.CurrentUserProvider;
 import com.envforge.controlapi.user.Role;
@@ -47,6 +48,9 @@ class DeploymentServiceTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private AuthorizationService authorizationService;
+
     private DeploymentService deploymentService;
 
     private EnvironmentEntity environment;
@@ -59,7 +63,8 @@ class DeploymentServiceTest {
             environmentRepository,
             deploymentExecutor,
             deploymentMetrics,
-            currentUserProvider
+            currentUserProvider,
+            authorizationService
         );
 
         environmentId = UUID.randomUUID();

@@ -21,7 +21,11 @@ jobs:
       ENV_NAMESPACE: env-m2-update-ci
       INITIAL_VERSION: "0.2.0"
       TARGET_VERSION: ${{ inputs.version }}
-      EXPECTED_TRIGGERED_BY: dev@envforge.local
+      EXPECTED_TRIGGERED_BY: owner@envforge.local
+      OWNER_USER_ID: dev-user
+      OWNER_USER_EMAIL: owner@envforge.local
+      OTHER_USER_ID: other-user
+      OTHER_USER_EMAIL: other@envforge.local
       IMAGE_REPOSITORY: envforge/static-web-demo
       WORKLOAD_CHART_PATH: deployment/helm/envforge-workload
 
@@ -263,8 +267,12 @@ jobs:
 
           assert environment["status"] == "READY", environment
           assert environment["imageVersion"] == os.environ["INITIAL_VERSION"], environment
+          assert environment["createdBy"] == os.environ["OWNER_USER_ID"], environment
 
-          print("PASS: initial environment is READY")
+          print(
+              "PASS: initial environment is READY and owned by "
+              + environment["createdBy"]
+          )
           PY
 
           kubectl \
@@ -273,6 +281,78 @@ jobs:
             deployment/"${ENV_NAME}-envforge-workload" \
             --namespace "${ENV_NAMESPACE}" \
             --timeout=120s
+
+      - name: Verify deployment ownership authorization
+        shell: bash
+        env:
+          ENV_ID: ${{ steps.environment.outputs.environment_id }}
+        run: |
+          OTHER_HISTORY_CODE="$(
+            curl \
+              --silent \
+              --show-error \
+              --output /tmp/non-owner-history.json \
+              --write-out '%{http_code}' \
+              -H "X-Debug-User-Id: ${OTHER_USER_ID}" \
+              -H "X-Debug-User-Email: ${OTHER_USER_EMAIL}" \
+              -H 'X-Debug-User-Name: Other Operator' \
+              -H 'X-Debug-User-Role: OPERATOR' \
+              "http://127.0.0.1:8080/api/environments/${ENV_ID}/deployments"
+          )"
+
+          cat /tmp/non-owner-history.json
+
+          test "${OTHER_HISTORY_CODE}" = "403"
+
+          echo "PASS: non-owner OPERATOR deployment history denied with 403"
+
+          DENIED_PATCH_BODY="$(
+            python3 -c '
+          import json
+          import os
+
+          print(json.dumps({
+              "version": os.environ["TARGET_VERSION"]
+          }))
+          '
+          )"
+
+          OTHER_PATCH_CODE="$(
+            curl \
+              --silent \
+              --show-error \
+              --output /tmp/non-owner-patch.json \
+              --write-out '%{http_code}' \
+              -X PATCH \
+              -H 'Content-Type: application/json' \
+              -H "X-Debug-User-Id: ${OTHER_USER_ID}" \
+              -H "X-Debug-User-Email: ${OTHER_USER_EMAIL}" \
+              -H 'X-Debug-User-Name: Other Operator' \
+              -H 'X-Debug-User-Role: OPERATOR' \
+              -d "${DENIED_PATCH_BODY}" \
+              "http://127.0.0.1:8080/api/environments/${ENV_ID}"
+          )"
+
+          cat /tmp/non-owner-patch.json
+
+          test "${OTHER_PATCH_CODE}" = "403"
+
+          echo "PASS: non-owner OPERATOR environment update denied with 403"
+
+          ADMIN_HISTORY_CODE="$(
+            curl \
+              --silent \
+              --show-error \
+              --output /tmp/admin-history.json \
+              --write-out '%{http_code}' \
+              "http://127.0.0.1:8080/api/environments/${ENV_ID}/deployments"
+          )"
+
+          cat /tmp/admin-history.json
+
+          test "${ADMIN_HISTORY_CODE}" = "200"
+
+          echo "PASS: ADMIN may view deployment history"
 
       - name: PATCH environment version
         shell: bash
@@ -296,6 +376,10 @@ jobs:
             --show-error \
             -X PATCH \
             -H 'Content-Type: application/json' \
+            -H "X-Debug-User-Id: ${OWNER_USER_ID}" \
+            -H "X-Debug-User-Email: ${OWNER_USER_EMAIL}" \
+            -H 'X-Debug-User-Name: Environment Owner' \
+            -H 'X-Debug-User-Role: OPERATOR' \
             -d "${PATCH_BODY}" \
             "http://127.0.0.1:8080/api/environments/${ENV_ID}" \
             > /tmp/deployment-update.json
@@ -383,6 +467,10 @@ jobs:
             --fail-with-body \
             --silent \
             --show-error \
+            -H "X-Debug-User-Id: ${OWNER_USER_ID}" \
+            -H "X-Debug-User-Email: ${OWNER_USER_EMAIL}" \
+            -H 'X-Debug-User-Name: Environment Owner' \
+            -H 'X-Debug-User-Role: OPERATOR' \
             "http://127.0.0.1:8080/api/environments/${ENV_ID}/deployments" \
             > /tmp/deployment-history.json
 

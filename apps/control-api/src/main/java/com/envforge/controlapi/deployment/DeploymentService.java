@@ -5,6 +5,8 @@ import com.envforge.controlapi.environment.EnvironmentNotFoundException;
 import com.envforge.controlapi.environment.EnvironmentRepository;
 import com.envforge.controlapi.environment.EnvironmentStatus;
 import com.envforge.controlapi.environment.EnvironmentTemplate;
+import com.envforge.controlapi.security.AuthorizationService;
+import com.envforge.controlapi.security.CurrentUser;
 import com.envforge.controlapi.security.CurrentUserProvider;
 
 import org.springframework.stereotype.Service;
@@ -22,19 +24,22 @@ public class DeploymentService {
     private final DeploymentExecutor deploymentExecutor;
     private final DeploymentMetrics deploymentMetrics;
     private final CurrentUserProvider currentUserProvider;
+    private final AuthorizationService authorizationService;
 
     public DeploymentService(
         DeploymentRepository deploymentRepository,
         EnvironmentRepository environmentRepository,
         DeploymentExecutor deploymentExecutor,
         DeploymentMetrics deploymentMetrics,
-        CurrentUserProvider currentUserProvider
+        CurrentUserProvider currentUserProvider,
+        AuthorizationService authorizationService
     ) {
         this.deploymentRepository = deploymentRepository;
         this.environmentRepository = environmentRepository;
         this.deploymentExecutor = deploymentExecutor;
         this.deploymentMetrics = deploymentMetrics;
         this.currentUserProvider = currentUserProvider;
+        this.authorizationService = authorizationService;
     }
 
     @Transactional
@@ -49,6 +54,15 @@ public class DeploymentService {
                         environmentId
                     )
                 );
+
+        CurrentUser currentUser =
+            currentUserProvider.getCurrentUser();
+
+        authorizationService.requireOwnerOrAdmin(
+            currentUser,
+            "UPDATE_ENVIRONMENT",
+            environment.getCreatedBy()
+        );
 
         boolean hasActiveRollout = deploymentRepository
             .findByEnvironmentIdOrderByStartedAtDesc(
@@ -87,9 +101,7 @@ public class DeploymentService {
         deployment.setStatus(DeploymentStatus.PENDING);
 
         deployment.setTriggeredBy(
-            currentUserProvider
-                .getCurrentUser()
-                .email()
+            currentUser.email()
         );
 
         deployment.setStartedAt(startedAt);
@@ -166,13 +178,22 @@ public class DeploymentService {
     public List<DeploymentResponse> getHistory(
         UUID environmentId
     ) {
-        if (!environmentRepository.existsById(
-            environmentId
-        )) {
-            throw new EnvironmentNotFoundException(
-                environmentId
-            );
-        }
+        EnvironmentEntity environment =
+            environmentRepository.findById(environmentId)
+                .orElseThrow(
+                    () -> new EnvironmentNotFoundException(
+                        environmentId
+                    )
+                );
+
+        CurrentUser currentUser =
+            currentUserProvider.getCurrentUser();
+
+        authorizationService.requireOwnerOrAdmin(
+            currentUser,
+            "VIEW_DEPLOYMENT_HISTORY",
+            environment.getCreatedBy()
+        );
 
         return deploymentRepository
             .findByEnvironmentIdOrderByStartedAtDesc(
