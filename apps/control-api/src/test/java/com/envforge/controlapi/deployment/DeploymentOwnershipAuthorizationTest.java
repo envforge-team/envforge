@@ -245,6 +245,14 @@ class DeploymentOwnershipAuthorizationTest {
         );
 
         when(
+            environmentRepository.findByIdForUpdate(
+                environmentId
+            )
+        ).thenReturn(
+            Optional.of(environment)
+        );
+
+        when(
             deploymentRepository
                 .findByEnvironmentIdOrderByStartedAtDesc(
                     environmentId

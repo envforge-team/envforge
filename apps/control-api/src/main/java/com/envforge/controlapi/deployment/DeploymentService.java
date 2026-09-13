@@ -3,12 +3,11 @@ package com.envforge.controlapi.deployment;
 import com.envforge.controlapi.environment.EnvironmentEntity;
 import com.envforge.controlapi.environment.EnvironmentNotFoundException;
 import com.envforge.controlapi.environment.EnvironmentRepository;
-import com.envforge.controlapi.environment.EnvironmentStatus;
-import com.envforge.controlapi.environment.EnvironmentTemplate;
 import com.envforge.controlapi.security.AuthorizationService;
 import com.envforge.controlapi.security.CurrentUser;
 import com.envforge.controlapi.security.CurrentUserProvider;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,14 +24,17 @@ public class DeploymentService {
     private final DeploymentMetrics deploymentMetrics;
     private final CurrentUserProvider currentUserProvider;
     private final AuthorizationService authorizationService;
+    private final DeploymentStateService deploymentStateService;
 
+    @Autowired
     public DeploymentService(
         DeploymentRepository deploymentRepository,
         EnvironmentRepository environmentRepository,
         DeploymentExecutor deploymentExecutor,
         DeploymentMetrics deploymentMetrics,
         CurrentUserProvider currentUserProvider,
-        AuthorizationService authorizationService
+        AuthorizationService authorizationService,
+        DeploymentStateService deploymentStateService
     ) {
         this.deploymentRepository = deploymentRepository;
         this.environmentRepository = environmentRepository;
@@ -40,9 +42,32 @@ public class DeploymentService {
         this.deploymentMetrics = deploymentMetrics;
         this.currentUserProvider = currentUserProvider;
         this.authorizationService = authorizationService;
+        this.deploymentStateService =
+            deploymentStateService;
     }
 
-    @Transactional
+    DeploymentService(
+        DeploymentRepository deploymentRepository,
+        EnvironmentRepository environmentRepository,
+        DeploymentExecutor deploymentExecutor,
+        DeploymentMetrics deploymentMetrics,
+        CurrentUserProvider currentUserProvider,
+        AuthorizationService authorizationService
+    ) {
+        this(
+            deploymentRepository,
+            environmentRepository,
+            deploymentExecutor,
+            deploymentMetrics,
+            currentUserProvider,
+            authorizationService,
+            new DeploymentStateService(
+                deploymentRepository,
+                environmentRepository
+            )
+        );
+    }
+
     public DeploymentResponse triggerUpdate(
         UUID environmentId,
         UpdateEnvironmentRequest request
@@ -64,113 +89,65 @@ public class DeploymentService {
             environment.getCreatedBy()
         );
 
-        boolean hasActiveRollout = deploymentRepository
-            .findByEnvironmentIdOrderByStartedAtDesc(
-                environmentId
-            )
-            .stream()
-            .anyMatch(
-                deployment ->
-                    deployment.getStatus()
-                        == DeploymentStatus.PENDING
-                    || deployment.getStatus()
-                        == DeploymentStatus.IN_PROGRESS
-            );
-
-        if (hasActiveRollout) {
-            throw new ConcurrentRolloutException(
-                environmentId
-            );
-        }
-
         validateVersion(request.version());
 
-        Instant startedAt = Instant.now();
-
-        DeploymentEntity deployment =
-            new DeploymentEntity();
-
-        deployment.setEnvironment(environment);
-        deployment.setRequestedVersion(request.version());
-        deployment.setImageTag(
+        String imageTag =
             buildImageTag(
                 environment,
                 request.version()
-            )
-        );
-        deployment.setStatus(DeploymentStatus.PENDING);
+            );
 
-        deployment.setTriggeredBy(
-            currentUser.email()
-        );
+        DeploymentStateService.DeploymentClaim claim =
+            deploymentStateService.claim(
+                environmentId,
+                request.version(),
+                imageTag,
+                currentUser.email()
+            );
 
-        deployment.setStartedAt(startedAt);
-
-        deploymentRepository.save(deployment);
-
-        deployment.setStatus(
-            DeploymentStatus.IN_PROGRESS
-        );
-
-        environment.changeStatus(
-            EnvironmentStatus.DEPLOYING,
-            startedAt
-        );
-
-        deploymentRepository.save(deployment);
-        environmentRepository.save(environment);
+        RuntimeException rolloutFailure = null;
 
         try {
             deploymentExecutor.deploy(
-                environment,
+                claim.environment(),
                 request.version()
             );
-
-            Instant finishedAt = Instant.now();
-
-            deployment.setStatus(
-                DeploymentStatus.SUCCESS
-            );
-            deployment.setFinishedAt(finishedAt);
-            deployment.setFailureReason(null);
-
-            environment.changeImageVersion(
-                request.version(),
-                finishedAt
-            );
-
-            environment.changeStatus(
-                EnvironmentStatus.READY,
-                finishedAt
-            );
         } catch (RuntimeException exception) {
-            Instant finishedAt = Instant.now();
+            rolloutFailure = exception;
+        }
 
-            deployment.setStatus(
-                DeploymentStatus.FAILED
-            );
-            deployment.setFinishedAt(finishedAt);
-            deployment.setFailureReason(
-                failureReason(exception)
-            );
+        Instant finishedAt = Instant.now();
 
-            environment.changeStatus(
-                EnvironmentStatus.FAILED,
-                finishedAt
-            );
+        DeploymentEntity completedDeployment;
+
+        if (rolloutFailure == null) {
+            completedDeployment =
+                deploymentStateService
+                    .completeSuccess(
+                        claim,
+                        request.version(),
+                        finishedAt
+                    );
+        } else {
+            completedDeployment =
+                deploymentStateService
+                    .completeFailure(
+                        claim,
+                        failureReason(
+                            rolloutFailure
+                        ),
+                        finishedAt
+                    );
         }
 
         deploymentMetrics.record(
-            deployment.getStatus(),
-            startedAt,
-            deployment.getFinishedAt()
+            completedDeployment.getStatus(),
+            claim.startedAt(),
+            completedDeployment.getFinishedAt()
         );
 
-        deploymentRepository.save(deployment);
-        environmentRepository.save(environment);
-
         return DeploymentResponse.fromEntity(
-            deployment
+            completedDeployment
         );
     }
 
@@ -226,6 +203,7 @@ public class DeploymentService {
         ) {
             case STATIC_WEB ->
                 "envforge/static-web-demo";
+
             case RELIABILITY_API ->
                 "envforge/reliability-demo-api";
         };

@@ -262,15 +262,6 @@ class DeploymentServiceTest {
             Optional.of(environment)
         );
 
-        when(
-            deploymentRepository
-                .findByEnvironmentIdOrderByStartedAtDesc(
-                    environmentId
-                )
-        ).thenReturn(
-            List.of()
-        );
-
         UpdateEnvironmentRequest request =
             new UpdateEnvironmentRequest(
                 "not-a-version"
@@ -299,6 +290,25 @@ class DeploymentServiceTest {
 
         when(
             environmentRepository.findById(
+                environmentId
+            )
+        ).thenReturn(
+            Optional.of(environment)
+        );
+
+        when(
+            currentUserProvider.getCurrentUser()
+        ).thenReturn(
+            new CurrentUser(
+                "operator-1",
+                "operator@envforge.local",
+                "EnvForge Operator",
+                Role.OPERATOR
+            )
+        );
+
+        when(
+            environmentRepository.findByIdForUpdate(
                 environmentId
             )
         ).thenReturn(
@@ -345,6 +355,14 @@ class DeploymentServiceTest {
 
         when(
             environmentRepository.findById(
+                environmentId
+            )
+        ).thenReturn(
+            Optional.of(environment)
+        );
+
+        when(
+            environmentRepository.findByIdForUpdate(
                 environmentId
             )
         ).thenReturn(
