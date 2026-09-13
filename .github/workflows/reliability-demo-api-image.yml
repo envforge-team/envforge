@@ -75,6 +75,54 @@ jobs:
         run: |
           helm lint "${CHART_PATH}"
 
+      - name: Create restricted namespace
+        shell: bash
+        run: |
+          helm template             "${RELEASE_NAME}"             "${CHART_PATH}"             --set namespace.create=true             --show-only templates/namespace.yaml             | kubectl apply -f -
+
+          kubectl get namespace             "${NAMESPACE}"             -o json             > /tmp/reliability-namespace.json
+
+          python3 - <<'PY'
+          import json
+
+          with open(
+              "/tmp/reliability-namespace.json"
+          ) as file:
+              namespace = json.load(file)
+
+          labels = namespace["metadata"]["labels"]
+
+          assert (
+              labels[
+                  "pod-security.kubernetes.io/enforce"
+              ]
+              == "restricted"
+          ), labels
+
+          assert (
+              labels[
+                  "pod-security.kubernetes.io/audit"
+              ]
+              == "restricted"
+          ), labels
+
+          assert (
+              labels[
+                  "pod-security.kubernetes.io/warn"
+              ]
+              == "restricted"
+          ), labels
+
+          assert (
+              labels["envforge.io/managed"]
+              == "true"
+          ), labels
+
+          print(
+              "PASS: namespace enforces restricted Pod Security"
+          )
+          PY
+
       - name: Deploy image with Helm
         shell: bash
         run: |
@@ -82,7 +130,6 @@ jobs:
             "${RELEASE_NAME}" \
             "${CHART_PATH}" \
             --namespace "${NAMESPACE}" \
-            --create-namespace \
             --set namespace.create=false \
             --set-string image.repository="${IMAGE_REPOSITORY}" \
             --set-string image.tag="${{ steps.image.outputs.tag }}" \
@@ -114,6 +161,90 @@ jobs:
           echo "Actual:   ${ACTUAL_IMAGE}"
 
           test "${ACTUAL_IMAGE}" = "${EXPECTED_IMAGE}"
+
+      - name: Verify hardened security context
+        shell: bash
+        run: |
+          kubectl get deployment             "${RELEASE_NAME}"             --namespace "${NAMESPACE}"             -o json             > /tmp/reliability-deployment.json
+
+          python3 - <<'PY'
+          import json
+
+          with open(
+              "/tmp/reliability-deployment.json"
+          ) as file:
+              deployment = json.load(file)
+
+          pod = (
+              deployment["spec"]["template"]["spec"]
+          )
+
+          container = pod["containers"][0]
+          security = container["securityContext"]
+
+          assert (
+              pod["securityContext"]["runAsNonRoot"]
+              is True
+          ), pod["securityContext"]
+
+          assert (
+              pod["securityContext"]["seccompProfile"]["type"]
+              == "RuntimeDefault"
+          ), pod["securityContext"]
+
+          assert (
+              security["allowPrivilegeEscalation"]
+              is False
+          ), security
+
+          assert (
+              security["runAsNonRoot"]
+              is True
+          ), security
+
+          assert (
+              security["runAsUser"]
+              == 10001
+          ), security
+
+          assert (
+              security["readOnlyRootFilesystem"]
+              is True
+          ), security
+
+          assert (
+              "ALL"
+              in security["capabilities"]["drop"]
+          ), security
+
+          mounts = {
+              item["name"]: item["mountPath"]
+              for item
+              in container.get(
+                  "volumeMounts",
+                  []
+              )
+          }
+
+          assert mounts.get("tmp") == "/tmp", mounts
+
+          volumes = {
+              item["name"]: item
+              for item
+              in pod.get("volumes", [])
+          }
+
+          assert "tmp" in volumes, volumes
+          assert (
+              "emptyDir"
+              in volumes["tmp"]
+          ), volumes["tmp"]
+
+          print(
+              "PASS: Reliability API deployment "
+              "uses hardened security context"
+          )
+          PY
 
       - name: Verify version endpoint
         shell: bash

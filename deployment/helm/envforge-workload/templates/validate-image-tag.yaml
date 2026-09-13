@@ -1,0 +1,4 @@
+{{- $tag := required "workload.image.tag is required" .Values.workload.image.tag -}}
+{{- if eq (lower (toString $tag)) "latest" -}}
+{{- fail "workload.image.tag must be fixed; latest is not allowed" -}}
+{{- end -}}

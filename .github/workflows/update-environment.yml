@@ -431,6 +431,90 @@ jobs:
 
           test "${ACTUAL_IMAGE}" = "${EXPECTED_IMAGE}"
 
+      - name: Verify workload security context
+        shell: bash
+        run: |
+          kubectl             --context "kind-${KIND_CLUSTER_NAME}"             get deployment             "${ENV_NAME}-envforge-workload"             --namespace "${ENV_NAMESPACE}"             -o json             > /tmp/workload-deployment.json
+
+          python3 - <<'PY'
+          import json
+
+          with open(
+              "/tmp/workload-deployment.json"
+          ) as file:
+              deployment = json.load(file)
+
+          pod = (
+              deployment["spec"]["template"]["spec"]
+          )
+
+          container = pod["containers"][0]
+          security = container["securityContext"]
+
+          assert (
+              pod["securityContext"]["runAsNonRoot"]
+              is True
+          ), pod["securityContext"]
+
+          assert (
+              pod["securityContext"]["seccompProfile"]["type"]
+              == "RuntimeDefault"
+          ), pod["securityContext"]
+
+          assert (
+              security["allowPrivilegeEscalation"]
+              is False
+          ), security
+
+          assert (
+              security["runAsNonRoot"]
+              is True
+          ), security
+
+          assert (
+              security["runAsUser"]
+              == 101
+          ), security
+
+          assert (
+              security["readOnlyRootFilesystem"]
+              is True
+          ), security
+
+          assert (
+              "ALL"
+              in security["capabilities"]["drop"]
+          ), security
+
+          mounts = {
+              item["name"]: item["mountPath"]
+              for item
+              in container.get(
+                  "volumeMounts",
+                  []
+              )
+          }
+
+          assert mounts.get("tmp") == "/tmp", mounts
+
+          volumes = {
+              item["name"]: item
+              for item
+              in pod.get("volumes", [])
+          }
+
+          assert "tmp" in volumes, volumes
+          assert (
+              "emptyDir"
+              in volumes["tmp"]
+          ), volumes["tmp"]
+
+          print(
+              "PASS: workload deployment uses "
+              "hardened security context"
+          )
+          PY
+
       - name: Verify environment state
         shell: bash
         env:
