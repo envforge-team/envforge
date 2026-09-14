@@ -151,7 +151,7 @@ public class DeploymentStateService {
         );
 
         environment.changeStatus(
-            EnvironmentStatus.FAILED,
+            EnvironmentStatus.DEGRADED,
             finishedAt
         );
 

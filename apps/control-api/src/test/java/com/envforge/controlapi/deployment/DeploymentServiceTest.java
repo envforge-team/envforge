@@ -211,7 +211,7 @@ class DeploymentServiceTest {
         assertThat(
             environment.getStatus()
         ).isEqualTo(
-            EnvironmentStatus.FAILED
+            EnvironmentStatus.DEGRADED
         );
 
         verify(deploymentMetrics)
@@ -219,6 +219,92 @@ class DeploymentServiceTest {
                 DeploymentStatus.FAILED,
                 response.startedAt(),
                 response.finishedAt()
+            );
+    }
+
+    @Test
+    void triggerUpdate_afterFailedRollout_canRecover() {
+        prepareEnvironment();
+
+        doThrow(
+            new IllegalStateException(
+                "image pull failed"
+            )
+        )
+            .when(deploymentExecutor)
+            .deploy(
+                environment,
+                "9.9.9"
+            );
+
+        DeploymentResponse failed =
+            deploymentService.triggerUpdate(
+                environmentId,
+                new UpdateEnvironmentRequest(
+                    "9.9.9"
+                )
+            );
+
+        assertThat(
+            failed.status()
+        ).isEqualTo(
+            DeploymentStatus.FAILED
+        );
+
+        assertThat(
+            failed.failureReason()
+        ).contains(
+            "image pull failed"
+        );
+
+        assertThat(
+            environment.getImageVersion()
+        ).isEqualTo(
+            "0.1.0"
+        );
+
+        assertThat(
+            environment.getStatus()
+        ).isEqualTo(
+            EnvironmentStatus.DEGRADED
+        );
+
+        DeploymentResponse recovered =
+            deploymentService.triggerUpdate(
+                environmentId,
+                new UpdateEnvironmentRequest(
+                    "0.2.0"
+                )
+            );
+
+        assertThat(
+            recovered.status()
+        ).isEqualTo(
+            DeploymentStatus.SUCCESS
+        );
+
+        assertThat(
+            environment.getImageVersion()
+        ).isEqualTo(
+            "0.2.0"
+        );
+
+        assertThat(
+            environment.getStatus()
+        ).isEqualTo(
+            EnvironmentStatus.READY
+        );
+
+        verify(deploymentExecutor)
+            .deploy(
+                environment,
+                "9.9.9"
+            );
+
+        verify(deploymentExecutor)
+            .deploy(
+                environment,
+                "0.2.0"
             );
     }
 
