@@ -47,7 +47,7 @@ spec:
                   key: db-password
           resources:
             {{- toYaml .Values.controlApi.resources | nindent 12 }}
-                    startupProbe:
+          startupProbe:
             httpGet:
               path: /actuator/health
               port: http
