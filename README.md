@@ -92,6 +92,7 @@ The portal retrieves live state from Kind through `kubectl` and Helm and display
 - Environment expiration
 - Manual and automatic cleanup workflows
 - Kubernetes and Helm cleanup validation
+- Deployment and image versioning guide: [`docs/deployment-and-versioning.md`](docs/deployment-and-versioning.md)
 
 ### Observability
 
